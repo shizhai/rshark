@@ -1,0 +1,6 @@
+__pycache__
+remote/*
+venv
+stores
+asrd.log
+asrd.spec

@@ -1,0 +1,236 @@
+import logging
+import threading
+import asrd_socket
+import json
+import subprocess
+import copy
+import queue
+import rshark
+import http.server
+
+#refer: https://blog.51cto.com/u_16175447/7201469
+
+http_const = {
+    "ok" : {"code": 200, "data": {"status": "OK", "msg": None}},
+    "error" : {"code": 404, "data": {"status": "ERROR", "msg": None}}
+    }
+
+msg_queue = {}
+asrd_http_responser = {}
+
+# send: http --> host
+def asrd_h2s_write(data):
+    msg_queue["h2s"].put(data)
+
+# send: host--> http
+def asrd_s2h_write(data):
+    msg_queue["s2h"].put(data)
+
+# recv: host<--http
+def asrd_h2s_read():
+    return msg_queue["h2s"].get(block=True, timeout=120)
+
+# recv: http<--host
+def asrd_s2h_read():
+    return msg_queue["s2h"].get(block=True, timeout=120)
+
+def asrd_http_response(key, data):
+    r = {}
+    r.update(http_const[key])
+    rsp = r["data"]
+    rsp["msg"] = data
+    asrd_s2h_write(r)
+
+class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
+    """
+    自定义一个 HTTP 请求处理器
+    """
+
+    def do_response(self, data):
+        print(data)
+        #print("++++++++++++++++++++++++++++++++")
+        # 1. 发送响应code
+        self.send_response(data["code"])
+
+        # 2. 发送响应头
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+
+        # 3. 发送响应内容（此处流不需要关闭）
+        self.wfile.write(json.dumps(data["data"]).encode("utf-8"))
+
+    def do_GET(self):
+        """
+        处理 GET 请求, 处理其他请求需实现对应的 do_XXX() 方法
+        """
+        #print(self.server)                # HTTPServer 实例
+        #print(self.client_address)        # 客户端地址和端口: (host, port)
+        #print(self.requestline)           # 请求行, 例如: "GET / HTTP/1.1"
+        #print(self.command)               # 请求方法, "GET"/"POST"等
+        #print(self.path)                  # 请求路径, Host 后面部分
+        #print(self.headers)               # 请求头, 通过 headers["header_name"] 获取值
+        #self.rfile                        # 请求输入流
+        #self.wfile                        # 响应输出流
+
+        #print(self.path)
+        req = str(self.path).lstrip("/").lstrip("?").split("&")
+        request = {}
+
+        for item in req:
+            r = item.split("=")
+            if len(r) < 2:
+                continue
+
+            request[str(r[0])] = str(r[1])
+
+        if not request:
+            self.do_response(http_const["error"])
+
+        asrd_h2s_write(request)
+        # print("send queue:{}".format(request))
+
+        try:
+            r = asrd_s2h_read()
+            self.do_response(r)
+        except queue.Empty:
+            self.do_response(http_const["error"])
+
+    def do_POST(self):
+        """
+        处理 POST 请求
+        """
+        # 0. 获取请求Body中的内容（需要指定读取长度, 不指定会阻塞）
+        req_body = self.rfile.read(int(self.headers["Content-Length"])).decode()
+        print("req_body: " + req_body)
+
+        # 1. 发送响应code
+        self.send_response(200)
+
+        # 2. 发送响应头
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+
+        # 3. 发送响应内容（此处流不需要关闭）
+        self.wfile.write(("Hello World: " + req_body + "\n").encode("utf-8"))
+
+class httpThread(threading.Thread):
+    def __init__(self, name, server_address):
+        super(httpThread, self).__init__()
+        # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
+        self.httpd = http.server.HTTPServer(server_address, RequestHandlerImpl)
+
+    def run(self):
+        # 循环等待客户端请求
+        self.httpd.serve_forever()
+
+class SrvThread(threading.Thread):
+    def __init__(self, name, args):
+        super(SrvThread, self).__init__()
+        self.name = name
+        self.args = args
+    
+    def run(self):
+        macs = self.args["macs"] if "macs" in self.args else None
+        timeout = self.args["timeout"] if "timeout" in self.args else 10
+        shark = rshark.Rshark(self.args["type"], self.args["ip"], self.args["port"], self.args["user"], \
+                              self.args["password"], self.args["dst"], self.args["interface"], self.args["channel"], macs, timeout)
+        shark.rshark_sniffer()
+
+class Asrd():
+    def __init__(self, conf):
+        # 服务器绑定的地址和端口
+        server_address = ("", 8000)
+        self.httpd = httpThread("http_server", server_address)
+
+        # [{"thread": "thread_id", "args": arg}, ]
+        self.threads = []
+        rshark.rshark_conf_init(conf)
+
+        self.queues = {
+            "start": self.asrd_start_sniffer,
+            "stop": self.asrd_stop_sniffer,
+            "list": self.asrd_list_running,
+                       }
+
+    def asrd_start_sniffer_thread(self, args):
+        r = len(self.threads)
+        running = {}
+        running["name"] = "sniffer" + str(r)
+        running["ip"] = args["ip"]
+        running["id"] = SrvThread(running["name"], args)
+        self.threads.append(running)
+
+        asrd_http_response("ok", {"thread_name": running["name"]})
+        running["id"].start()
+        del r
+
+    def asrd_start_sniffer(self, args):
+        lhost = {}
+
+        if not "ip" in args:
+            asrd_http_response("error", "Remote ip address needed!")
+            return
+
+        if not ("type" in args and "user" in args and "password" in args and "dst" in args and "interface" in args and "channel" in args and "port" in args):
+            lhost = rshark.rshark_lookup_hosts(args["ip"], True)
+            if not lhost:
+                asrd_http_response("error", "Remote ip address not found in configure file as not enough info in the param!")
+                return
+
+            args["type"] = lhost["type"] if not "type" in args else args["type"]
+            args["user"] = lhost["user"] if not "user" in args else args["user"]
+            args["password"] = lhost["password"] if not "password" in args else args["password"]
+            args["interface"] = lhost["interface"][0] if not "interface" in args else args["interface"]
+            args["channel"] = lhost["channel"] if not "channel" in args else args["channel"]
+            args["dst"] = lhost["dst"] if not "dst" in args else args["dst"]
+            args["port"] = lhost["port"] if not "port" in args else args["port"]
+
+        self.asrd_start_sniffer_thread(args)
+
+    def asrd_stop_sniffer(self, args):
+        pass
+
+    def asrd_list_running(self, args):
+        print(self.threads)
+        r = []
+        for t in self.threads:
+            r.append(copy.copy(t))
+
+        #print(r)
+        #print("before:", self.threads)
+        #print("id(threads)", id(self.threads))
+        #print("id(r)", id(r))
+        for thread in r:
+            thread.pop("id")
+        #print("after:", self.threads)
+        asrd_http_response("ok", r)
+        del r
+
+    def asrd_run(self):
+        while True:
+            try:
+                args = asrd_h2s_read()
+            except queue.Empty:
+                continue
+            print(args)
+            if "cmd" in args and args["cmd"] in self.queues:
+                print(args)
+                self.queues[args["cmd"]](args)
+                pass
+            else:
+                #print(args)
+                asrd_http_response("error", "CMD {} Not found!".format(args["cmd"] if "cmd" in args else "Null"))
+
+if __name__ == "__main__":
+    # queue use for msg comunication to asrd threads
+    msg_queue["h2s"] = queue.Queue()
+    msg_queue["s2h"] = queue.Queue()
+    A = Asrd("./clients")
+    A.httpd.start()
+
+    A.asrd_run()
+
+    for r in A.threads:
+        r["id"].join()
+
+    A.httpd.join()

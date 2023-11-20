@@ -1,0 +1,5 @@
+# user, pass, port, ip, rpath, stores(root), use tunnel, type(openwrt, ubuntu), chan, intf(s)
+aix!12345678!22!10.17.7.66!/home/aix/QA/QA_FILES/Li.Lin!/home/sampson.yang/remotes/remote!0!ubuntu!0!wlp2s0mon
+li.lin!12345678!22!10.17.7.100!/home/li.lin/QA/QA_FILES/Li.Lin!/home/sampson.yang/remotes/remote!0!ubuntu!0!wlp2s0mon
+aix!12345678!22!10.17.7.28!/home/aix/sniffer_log!/home/sampson.yang/remotes/remote!1!ubuntu!1!wlan0mon,wlan1mon,wlan2mon
+root!12345678!22!10.17.7.107!!/home/sampson.yang/remotes/remote!1!openwrt!1!mon1
