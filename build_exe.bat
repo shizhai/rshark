@@ -6,6 +6,10 @@ call pyinstaller --onefile asrd.py
 
 call pyinstaller --onefile rshark.py
 
-copy clients win_init.bat readme.html .\dist
+copy clients .\dist
+
+copy win_init.bat .\dist
+
+copy readme.html .\dist
 
 pause
