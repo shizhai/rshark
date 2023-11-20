@@ -252,8 +252,14 @@ class Rshark():
 
                 wireless_id.close()
         else:
-            print("Use static wireless config file for OpenWrt!")
-            wireless_file_contents = '''
+            get_target_type = "if [ -n \"$(cat /etc/banner | grep openwrt -ri)\" ];then echo openwrt ;else echo QSDK;fi"
+            stdin, stdout, stderr = self.ssh.exec_command(get_target_type)
+            target_type = stdout.readline().strip("\n")
+            print("Use static wireless({}) config file for OpenWrt!".format(target_type))
+
+
+            if target_type == "QSDK":
+                wireless_file_contents = '''
 config wifi-device 'wifi0'
 	option type 'qcawificfg80211'
 	option channel 'auto'
@@ -292,6 +298,40 @@ config wifi-iface
 	option mode 'monitor'
 	option ifname 'mon1'
 '''
+            else:
+                wireless_file_contents = """
+config wifi-device 'radio0'
+        option type 'mac80211'
+        option path 'platform/soc/c000000.wifi'
+        option channel '36'
+        option band '5g'
+        option htmode 'HE80'
+        option disabled '0'
+
+config wifi-iface 'default_radio0'
+        option device 'radio0'
+        option network 'lan'
+        option mode 'monitor'
+        option ssid 'OpenWrt'
+        option encryption 'none'
+        option ifname 'mon0'
+
+config wifi-device 'radio1'
+        option type 'mac80211'
+        option path 'platform/soc/c000000.wifi+1'
+        option channel '1'
+        option band '2g'
+        option htmode 'HE20'
+        option disabled '0'
+
+config wifi-iface 'default_radio1'
+        option device 'radio1'
+        option network 'lan'
+        option mode 'monitor'
+        option ssid 'OpenWrt'
+        option encryption 'none'
+        option ifname 'mon1'
+"""
 
         wireless_id = wireless_file_contents.split("\n")
         for line in wireless_id:

@@ -1076,12 +1076,11 @@ body .markdown-body
 .highlight .vi{color:teal}
 .highlight .il{color:#009999}
 .highlight .gc{color:#999;background-color:#EAF2F5}
-</style><title>sniffer_online_win</title></head><body><article class="markdown-body"><div class="toc">
+</style><title>readme</title></head><body><article class="markdown-body"><div class="toc">
 <ul>
 <li><a href="#windows">windows直接访问</a><ul>
 <li><a href="#it">IT部分</a><ul>
 <li><a href="#windows_1">windows系统环境</a></li>
-<li><a href="#windows-powershell">windows powershell配置</a></li>
 </ul>
 </li>
 <li><a href="#user">User部分</a><ul>
@@ -1097,28 +1096,18 @@ body .markdown-body
 <h1 id="windows">windows直接访问<a class="headerlink" href="#windows" title="Permanent link"></a></h1>
 <h2 id="it">IT部分<a class="headerlink" href="#it" title="Permanent link"></a></h2>
 <h3 id="windows_1">windows系统环境<a class="headerlink" href="#windows_1" title="Permanent link"></a></h3>
-<p>依赖的软件python与wireshark已经在本文件同级目录提供
-* 安装python3.8，并在安装过程中选择自动添加进环境变量
-* 安装最新版本wireshark并配置wireshark至环境变量中<a href="https://zhuanlan.zhihu.com/p/231668109">参考</a></p>
-<h3 id="windows-powershell">windows powershell配置<a class="headerlink" href="#windows-powershell" title="Permanent link"></a></h3>
-<p>管理员权限</p>
-<blockquote>
-<p>\dcscdu1\cd\APP\OA\2_白名单程序\Admin授权工具\powershell</p>
-</blockquote>
-<p>命令行权限</p>
-<blockquote>
-<p>Set-ExecutionPolicy RemoteSigned</p>
-</blockquote>
-<p>win打开SSH权限，请参考</p>
-<blockquote>
+<p>依赖的软件python与wireshark已经在本文件同级目录提供</p>
 <ul>
-<li><a href="https://www.shellhacks.com/bad-owner-or-permissions-on-ssh-config-solved/">https://www.shellhacks.com/bad-owner-or-permissions-on-ssh-config-solved/</a></li>
-<li>在命令窗口执行ssh-keygen -t rsa 直接回车生成即可</li>
+<li>
+<p>安装python3.8，并在安装过程中选择自动添加进环境变量</p>
+</li>
+<li>
+<p>安装最新版本wireshark并配置wireshark至环境变量中<a href="https://zhuanlan.zhihu.com/p/231668109">参考</a></p>
+</li>
 </ul>
-</blockquote>
 <h2 id="user">User部分<a class="headerlink" href="#user" title="Permanent link"></a></h2>
-<p>使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu</p>
-<blockquote>
+<ol>
+<li>使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu<blockquote>
 <ul>
 <li>user: 抓包设备的SSH登录用户名</li>
 <li>pass: 抓包设备的SSH登录密码</li>
@@ -1131,6 +1120,9 @@ body .markdown-body
 </li>
 </ul>
 </blockquote>
+</li>
+<li>首次使用需要执行一次<code>win_init.bat</code>脚本</li>
+</ol>
 <h3 id="rd">RD模式使用说明<a class="headerlink" href="#rd" title="Permanent link"></a></h3>
 <ol>
 <li>若使用源码release版本：修改clients配置文件之后再双击 &ldquo;start.bat&rdquo;启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理</li>

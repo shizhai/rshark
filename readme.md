@@ -4,23 +4,13 @@
 ## IT部分
 ### windows系统环境
 依赖的软件python与wireshark已经在本文件同级目录提供
+
 * 安装python3.8，并在安装过程中选择自动添加进环境变量
+
 * 安装最新版本wireshark并配置wireshark至环境变量中[参考](https://zhuanlan.zhihu.com/p/231668109)
 
-### windows powershell配置
-
-管理员权限
-> \\dcscdu1\cd\APP\OA\2_白名单程序\Admin授权工具\powershell
-
-命令行权限
-> Set-ExecutionPolicy RemoteSigned
-
-win打开SSH权限，请参考
-> * https://www.shellhacks.com/bad-owner-or-permissions-on-ssh-config-solved/
-> * 在命令窗口执行ssh-keygen -t rsa 直接回车生成即可
- 
 ## User部分
-使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu
+1. 使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu
 > * user: 抓包设备的SSH登录用户名
 > * pass: 抓包设备的SSH登录密码
 > * port: 抓包设备的SSH登录port，默认为22，一般无需修改
@@ -30,6 +20,8 @@ win打开SSH权限，请参考
 > * chan: 需要抓取的目标信道
 > * intf(s): 抓包设备支持的所有接口列表，使用","隔开，若未传入参数，则默认使用第一个接口
 > 
+2. 首次使用需要执行一次`win_init.bat`脚本
+
 ### RD模式使用说明
 1. 若使用源码release版本：修改clients配置文件之后再双击 "start.bat"启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理
 2. 若使用exe release版本：修改clients配置文件之后再双击rshark.exe文件即可
