@@ -1,7 +1,8 @@
 # user, pass, port, ip, use tunnel, type(openwrt, ubuntu), chan, intf(s)
 #root!12345678!22!10.17.7.66!0!ubuntu!1!wlp2s0mon
+# 对于asrd（http模式）,若设备支持多网卡,则逗号隔开，http请求时传入对应的网卡即可，以限制http接口请求错误的网卡
 #root!12345678!22!10.17.7.100!0!ubuntu!1!wlp2s0mon
-root!12345678!22!10.17.7.28!0!ubuntu!1!wlan0mon,wlan1mon,wlan2mon
-#root!12345678!22!192.168.4.1!1!openwrt!1!mon1
-#root!12345678!22!10.17.7.107!1!openwrt!1!mon1
+# 10.17.7.28有三张网卡可以使用：wlan0mon,wlan1mon,wlan2mon
+root!12345678!22!10.17.7.28!1!ubuntu!1!wlan0mon
+# 对于openwrt/qsdk当前2.4G接口名称默认为mon1，5G接口名称默认为mon0
 root!12345678!22!192.168.8.1!1!openwrt!1!mon1

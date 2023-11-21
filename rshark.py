@@ -87,7 +87,7 @@ def exit_sig(signum, frame):
     sys.exit()
 
 def rshark_from_conf(file):
-    with open(file, "r") as conf_file:
+    with open(file, "r", encoding="utf-8") as conf_file:
         while True:
             line = conf_file.readline()
             if line.startswith("#"):
@@ -180,6 +180,16 @@ class Rshark():
             print("ERROR, target device type {} not support!".format(rtype))
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
+
+        posix_nt_home = os.path.expanduser("~")
+        if self.ostype != "posix":
+            if not os.path.exists(posix_nt_home + "\\.ssh") or not os.path.exists(posix_nt_home +"\\.ssh\id_rsa.pub"):
+                ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f %%userprofile%%/.ssh/id_rsa -q"
+                subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
+        else:
+            if not os.path.exists(posix_nt_home + "/.ssh") or not os.path.exists(posix_nt_home +"/.ssh/id_rsa.pub"):
+                ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa -q"
+                subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
 
         self.ssh = paramiko.SSHClient()
         key = paramiko.AutoAddPolicy()

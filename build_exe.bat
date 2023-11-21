@@ -8,8 +8,6 @@ call pyinstaller --onefile rshark.py
 
 copy clients .\dist
 
-copy win_init.bat .\dist
-
 copy readme.html .\dist
 
 pause
