@@ -241,6 +241,13 @@ class Rshark():
         #    if rsp:
         #        response.append(rsp)
         #        break
+        self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
+        self.ssh.exec_command("echo 'dhcp-option=3' >> /etc/dnsmasq.conf")
+        self.ssh.exec_command("echo 'dhcp-option=6' >> /etc/dnsmasq.conf")
+        self.ssh.exec_command("uci set dhcp.@dnsmasq[0].port=0")
+        self.ssh.exec_command("uci commit")
+        self.ssh.exec_command("/etc/init.d/dnsmasq restart")
+        print("conf openwrt dhcp done!")
 
         if self.ostype != "posix":
             wireless_file = os.path.split(os.path.realpath(__file__))[0] + "\\" + "openwrt\\wireless"
@@ -349,6 +356,8 @@ config wifi-iface 'default_radio1'
             # print(line_cmd)
             self.ssh.exec_command(line_cmd)
 
+        print("Sync openwrt wifi configure done!")
+
         self.ssh.exec_command("ifconfig " + self.intf + " down")
         self.ssh.exec_command("uci set wireless.wifi" + self.intf[-1] + ".channel=" + str(self.chan))
         self.ssh.exec_command("uci commit")
@@ -364,7 +373,7 @@ config wifi-iface 'default_radio1'
             if rsp == self.intf:
                 break
 
-        print("conf openwrt done!")
+        print("conf openwrt wifi done!")
 
     def rshark_conf_ubuntu(self):
         stdin, stdout, stderr = self.ssh.exec_command("whoami")

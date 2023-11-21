@@ -19,8 +19,8 @@
 > * type: 抓包设备的类型，当前支持openwrt, ubuntu
 > * chan: 需要抓取的目标信道
 > * intf(s): 抓包设备支持的所有接口列表，使用","隔开，若未传入参数，则默认使用第一个接口
-> 
-2. 首次使用需要执行一次`win_init.bat`脚本
+
+2. 当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改
 
 ### RD模式使用说明
 1. 若使用源码release版本：修改clients配置文件之后再双击 "start.bat"启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理
@@ -31,6 +31,16 @@
 2. 若使用exe release版本，修改clients配置文件之后再双击asrd.exe文件即可
 
 ## 版本历史
+v1.2.2
+
+> fix User PC cann't access internet when execute rshark with OpenWRT
+
+v1.2.1
+
+> add support gen ssh key automatically with user call win_init.bat
+
+> add comment for clients
+
 v1.1.1
 > add support wifi_init.bat support which can add ssh key and wirehark env to windows automatically
 

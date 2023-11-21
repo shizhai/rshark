@@ -1107,7 +1107,9 @@ body .markdown-body
 </ul>
 <h2 id="user">User部分<a class="headerlink" href="#user" title="Permanent link"></a></h2>
 <ol>
-<li>使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu<blockquote>
+<li>
+<p>使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu</p>
+<blockquote>
 <ul>
 <li>user: 抓包设备的SSH登录用户名</li>
 <li>pass: 抓包设备的SSH登录密码</li>
@@ -1116,12 +1118,13 @@ body .markdown-body
 <li>use tunnel: 是否命令行模式，当前支持命令行模式(for RD)与http(for AUTOTEST)交互控制模式</li>
 <li>type: 抓包设备的类型，当前支持openwrt, ubuntu</li>
 <li>chan: 需要抓取的目标信道</li>
-<li>intf(s): 抓包设备支持的所有接口列表，使用&rdquo;,&rdquo;隔开，若未传入参数，则默认使用第一个接口
-</li>
+<li>intf(s): 抓包设备支持的所有接口列表，使用&rdquo;,&rdquo;隔开，若未传入参数，则默认使用第一个接口</li>
 </ul>
 </blockquote>
 </li>
-<li>当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改</li>
+<li>
+<p>当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改</p>
+</li>
 </ol>
 <h3 id="rd">RD模式使用说明<a class="headerlink" href="#rd" title="Permanent link"></a></h3>
 <ol>
@@ -1134,6 +1137,10 @@ body .markdown-body
 <li>若使用exe release版本，修改clients配置文件之后再双击asrd.exe文件即可</li>
 </ol>
 <h2 id="_1">版本历史<a class="headerlink" href="#_1" title="Permanent link"></a></h2>
+<p>v1.1.2</p>
+<blockquote>
+<p>fix User PC cann&rsquo;t access internet when execute rshark with OpenWRT</p>
+</blockquote>
 <p>v1.2.1</p>
 <blockquote>
 <p>add support gen ssh key automatically with user call win_init.bat</p>
@@ -1195,10 +1202,4 @@ for example:</p>
 <p>v0.9.2</p>
 <blockquote>
 <p>configure openwrt by remote wireless file instead of uci directly</p>
-</blockquote></article></body></html><script async>
-document.write(
-  '<script src="http://' +
-  (location.host || 'localhost').split(':')[0] +
-  ':35729/livereload.js?snipver=1" async></' +
-  'script>')
-</script>
+</blockquote></article></body></html>
