@@ -7,7 +7,7 @@
 
 * 安装python3.8，并在安装过程中选择自动添加进环境变量
 
-* 安装最新版本wireshark并配置wireshark至环境变量中[参考](https://zhuanlan.zhihu.com/p/231668109)
+* 安装最新版本wireshark,**并创建开始菜单**
 
 ## User部分
 1. 使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu
@@ -23,14 +23,41 @@
 2. 当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改
 
 ### RD模式使用说明
-1. 若使用源码release版本：修改clients配置文件之后再双击 "start.bat"启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理
-2. 若使用exe release版本：修改clients配置文件之后再双击rshark.exe文件即可
+* 鼠标双击打开rshark.exe
+> 修改clients配置文件，一个clients配置文件仅支持一台设备
+> 
+> 对于多台sniffer 设备，可以拷贝此目录，修改clients，再打开
 
-### AUTOTEST使用说明
-1. 若使用源码release版本：双击windows批处理脚本："damon.bat"启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理
-2. 若使用exe release版本，修改clients配置文件之后再双击asrd.exe文件即可
+* 命令行参数打开 rshark.exe
+> 参考rshark -h传入对应参数，一个CMD窗口仅支持一台sniffer设备
+> 
+> 对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开
+
+### SAT使用说明
+* 双击asrd.exe
+* 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v1.3.3
+
+> fix host not found cause application hang while running asrd
+
+v1.3.2
+
+> fix issue in case1 with connecting to WAN port of openwrt
+> 
+> fix fail to role back to APPDATA to search wireshark when fail during ProgramData
+
+v1.3.1
+
+> add ENV path for wireshark without manual operation, but wireshare should be installed in to "Start Menu"
+> 
+> fix ssh-key issue that path escap in win
+
+v1.2.3
+
+> fix capture files are delted automatically by os when exit the asrd
+
 v1.2.2
 
 > fix User PC cann't access internet when execute rshark with OpenWRT

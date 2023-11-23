@@ -155,17 +155,13 @@ class SrvThread(threading.Thread):
 
 class Asrd():
     def __init__(self, conf):
-        self.ostype = os.name
         # 服务器绑定的地址和端口
         server_address = ("", 8000)
         self.httpd = httpThread("http_server", server_address)
 
         # print(os.path.split(os.path.realpath(__file__)))
-
-        if self.ostype != "posix":
-            stores_path = os.path.split(os.path.realpath(__file__))[0] + "\stores"
-        else:
-            stores_path = os.path.split(os.path.realpath(__file__))[0] + "/stores"
+        self.hostinfo = rshark.rshark_get_path_info()
+        stores_path = self.hostinfo["store_parent_path"]
 
         # print(stores_path)
 
@@ -184,13 +180,13 @@ class Asrd():
             "list": self.asrd_list_running,
             "terms": self.asrd_list_terms,
                        }
-        if self.ostype != "posix":
+        if self.hostinfo["platform"].startswith("win"):
             get_ip_cmd = "netsh interface ip show address | findstr \"IP Address\""
         else:
             get_ip_cmd = "ip addr show dev $(route -n | awk '/UG/{print $8}' | head -n 1) | grep 'inet ' | awk '{print $2}' | awk -F/ '{print $1}'"
         print(get_ip_cmd)
         gic = subprocess.Popen(get_ip_cmd, stdout=subprocess.PIPE, shell=True)
-        if self.ostype != "posix":
+        if self.hostinfo["platform"].startswith("win"):
             self.hostip = gic.stdout.readline().decode("gbk").split(":")[1].strip("\r\n ")
         else:
             self.hostip = gic.stdout.readline().decode("utf-8").strip("\n ")
@@ -233,7 +229,10 @@ class Asrd():
             asrd_http_response("error", "Remote ip address needed!")
             return
 
-        lhost = rshark.rshark_lookup_hosts(args["ip"], True, False)
+        lhost = rshark.rshark_lookup_hosts(args["ip"], False, False)
+        if not lhost:
+            asrd_http_response("error", "Remote host {} not found!".format(args["ip"]))
+            return
 
         # 远程没有可以使用的接口
         if len(lhost["interface"]) < 1:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import re
 import threading
 import time
 import sys
@@ -24,7 +25,60 @@ from pexpect import popen_spawn
 cli_running=False
 cli_running_ip=None
 cli_running_intf=None
-rshark_running = os.path.split(os.path.realpath(__file__))[0] + "/rshark.running"
+# rshark_running = os.path.split(os.path.realpath(__file__))[0] + "/rshark.running"
+rshark_running = "./rshark.running"
+
+os_platform = sys.platform.lower()
+current_path = None
+store_parent_path = None
+if os_platform == "linux":
+    current_path = os.path.split(os.path.realpath(__file__))[0]
+    store_parent_path = current_path + "/stores/"
+elif os_platform.startswith("win"):
+    current_path = ".\\"
+    store_parent_path = current_path + "\\stores\\"
+else:
+    raise
+
+def rshark_get_path_info():
+    return {"platform": os_platform, "current_path": current_path, "store_parent_path": store_parent_path}
+
+def rshark_get_win_wireshark_path():
+    return '''
+@echo off
+setlocal enabledelayedexpansion
+
+REM 设置 Wireshark 快捷方式名称
+set "shortcutName=Wireshark"
+
+REM 在 %APPDATA% 中查找 Wireshark 快捷方式
+for /f "tokens=*" %%a in ('dir /s /b "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\%shortcutName%.lnk"') do (
+    set "shortcutPath=%%a"
+)
+
+REM 在 %ProgramData% 中查找 Wireshark 快捷方式（所有用户）
+if not defined shortcutPath (
+    for /f "tokens=*" %%a in ('dir /s /b "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\%shortcutName%.lnk"') do (
+        set "shortcutPath=%%a"
+    )
+)
+
+REM 提取 Wireshark 安装路径
+if defined shortcutPath (
+    for /f "tokens=2*" %%b in ('powershell -Command "(New-Object -ComObject WScript.Shell).CreateShortcut('!shortcutPath!').TargetPath"') do (
+		set "wiresharkPath=%%b"
+    )
+)
+
+REM 打印 Wireshark 的安装路径
+if defined wiresharkPath (
+    echo !wiresharkPath!
+) else (
+    echo none
+)
+
+endlocal
+'''
 
 #[{"ip""ip addr", "user": "user name", ...}]
 conf_hosts = []
@@ -32,7 +86,7 @@ conf_hosts = []
 def rshark_remove_running(ip, intf):
     new_lines = []
     if not cli_running:
-        # print("test1")
+        print("test1")
         return
 
     if not os.path.exists(rshark_running):
@@ -53,6 +107,9 @@ def rshark_remove_running(ip, intf):
 
         rrf.close()
 
+    if len(new_lines) == 0:
+        os.remove(rshark_running)
+
     with open(rshark_running, "w") as rrf:
         for line in new_lines:
             rrf.write(line)
@@ -71,7 +128,7 @@ def rshark_check_running(ip, intf):
                 break
             linex = line.split(",")
             if linex[0] == args.ip and linex[1] == args.interface:
-                print("host {} with interface {} is runsing!".format(args.ip, args.interface))
+                print("WARNING! host {} with interface {} is runsing!".format(args.ip, args.interface))
                 rrf.close()
                 return True
 
@@ -103,10 +160,10 @@ def rshark_from_conf(file):
             lhost["password"] = l[1]
             lhost["port"] = l[2]
             lhost["ip"] = l[3]
-            if os.name != "posix":
-                lhost["dst"] = "local://" + os.path.split(os.path.realpath(__file__))[0] + "\stores\\" + lhost["ip"] + "\\" # default store to script path
+            if os_platform.startswith("win"):
+                lhost["dst"] = "local://" + current_path + "\stores\\" + lhost["ip"] + "\\" # default store to script path
             else:
-                lhost["dst"] = "local://" + os.path.split(os.path.realpath(__file__))[0] + "/stores/" + lhost["ip"] + "/"# default store to script path
+                lhost["dst"] = "local://" + current_path + "/stores/" + lhost["ip"] + "/"# default store to script path
 
             lhost["usetunnel"] = False if l[4] == "0" else True
             lhost["type"] = l[5]
@@ -125,6 +182,9 @@ def rshark_lookup_hosts(ip, ifraise, useTunnel):
     print("host: " + ip + " Not found!")
     if ifraise:
         raise
+    else:
+        return None
+
 def rshark_get_hosts(useTunnel):
     rsp = []
     for item in conf_hosts:
@@ -139,7 +199,6 @@ class Rshark():
         self.rport = rport
         self.ruser = ruser
         self.rpasswd = rpasswd
-        self.ostype = os.name
         self.macs = macs.split(",") if macs else []
         self.timeout = timeout
         self.wait_subprocess = []
@@ -182,12 +241,18 @@ class Rshark():
             exit_sig(None, None)
 
         posix_nt_home = os.path.expanduser("~")
-        if self.ostype != "posix":
-            if not os.path.exists(posix_nt_home + "\\.ssh") or not os.path.exists(posix_nt_home +"\\.ssh\id_rsa.pub"):
-                ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f %%userprofile%%/.ssh/id_rsa -q"
+        if os_platform.startswith("win"):
+            if  not os.path.exists(posix_nt_home + "\.ssh\id_rsa.pub"):
+                print("create ssh key1...")
+                if not os.path.exists(posix_nt_home + "\.ssh"):
+                    os.makedirs(posix_nt_home + "\.ssh")
+                ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f %userprofile%/.ssh/id_rsa -q"
+                # print(ssh_keygen_cmd)
                 subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
+                # print(posix_nt_home + "\.ssh\id_rsa.pub")
         else:
             if not os.path.exists(posix_nt_home + "/.ssh") or not os.path.exists(posix_nt_home +"/.ssh/id_rsa.pub"):
+                # print("create ssh key2...")
                 ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa -q"
                 subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
 
@@ -241,6 +306,16 @@ class Rshark():
         #    if rsp:
         #        response.append(rsp)
         #        break
+
+        stdin, stdout, stderr = self.ssh.exec_command("uci show firewall | grep \".name='wan'\" | awk -F= '{print $1}'")
+        rsp = stdout.readline().strip("\n ").rstrip("name")
+        allow_input = "uci set " + rsp + "input=ACCEPT"
+        self.ssh.exec_command(allow_input)
+        allow_forward = "uci set " + rsp + "forward=ACCEPT"
+        self.ssh.exec_command(allow_forward)
+        self.ssh.exec_command("uci commit")
+        print("conf openwrt firewall done!")
+
         self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
         self.ssh.exec_command("echo 'dhcp-option=3' >> /etc/dnsmasq.conf")
         self.ssh.exec_command("echo 'dhcp-option=6' >> /etc/dnsmasq.conf")
@@ -249,10 +324,10 @@ class Rshark():
         self.ssh.exec_command("/etc/init.d/dnsmasq restart")
         print("conf openwrt dhcp done!")
 
-        if self.ostype != "posix":
-            wireless_file = os.path.split(os.path.realpath(__file__))[0] + "\\" + "openwrt\\wireless"
+        if os_platform.startswith("win"):
+            wireless_file = current_path + "\\" + "openwrt\\wireless"
         else:
-            wireless_file = os.path.split(os.path.realpath(__file__))[0] + "/" + "openwrt/wireless"
+            wireless_file = current_path + "/" + "openwrt/wireless"
 
         self.ssh.exec_command(">/etc/config/wireless")
         if os.path.exists(wireless_file):
@@ -394,12 +469,11 @@ config wifi-iface 'default_radio1'
         response = []
         while True:
             rsp = stdout.readline().strip("\n ")
-            print(rsp)
+            # print(rsp)
             if rsp:
                 response.append(rsp)
                 break
 
-        print(response)
         if self.intf not in response:
             print("ERROR, Interface {} pull up failed".format(self.intf))
             # os.kill(os.getpid(), signal.SIGABRT)
@@ -412,7 +486,7 @@ config wifi-iface 'default_radio1'
     def rshark_update_key(self):
         self.ssh.exec_command("rm ~/.ssh/authorized_keys >/dev/null 2>&1")
 
-        if self.ostype != "posix":
+        if os_platform.startswith("win"):
             # ssh_copy_id_cmd = "scp " + str(os.path.expanduser("~")) + \
             #                       "\.ssh\id_rsa.pub " + self.ruser +"@" + self.rip + ":/tmp/"
 
@@ -432,9 +506,10 @@ config wifi-iface 'default_radio1'
             #         print("send password", self.rpasswd)
             #         break
             ssh_copy_id = str(os.path.expanduser("~")) + "\.ssh\id_rsa.pub"
+            ssh_copy_id = '/'.join(ssh_copy_id.split('\\'))
             #+ self.ruser +"@" + self.rip + ":/tmp/"
             id_pubs = []
-            with open(ssh_copy_id, "r") as id_pub:
+            with open(r"{}".format(ssh_copy_id), "r") as id_pub:
                 while True:
                     line = id_pub.readline()
                     if not line:
@@ -467,9 +542,10 @@ config wifi-iface 'default_radio1'
                 elif index == 3 or index == 4:
                     break
 
-        if self.ostype != "posix":
+        if os_platform.startswith("win"):
             self.ssh.exec_command("cp /tmp/id_rsa.pub /etc/dropbear/authorized_keys >/dev/null 2>&1")
             self.ssh.exec_command("mv /tmp/id_rsa.pub ~/.ssh/authorized_keys >/dev/null 2>&1")
+            # print("move")
 
         #ubuntu will ignore this step
         self.ssh.exec_command("cp ~/.ssh/authorized_keys /etc/dropbear/ >/dev/null 2>&1")
@@ -509,10 +585,36 @@ config wifi-iface 'default_radio1'
                     break
 
     def rshark_store_wireshark(self, arg, inputd):
-        print("store wireshark.....")
-        pargs = ["wireshark", "-k", "-i", "-"]
+        wiresharkx = "wireshark"
+        result = None
+        if os_platform.startswith("win"):
+            cmd1 = "dir /s /b \"%ProgramData%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx +".lnk\""
+            rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
+            result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
+            match = re.search(r'ProgramData', result, re.M|re.I).group(0)
+            if not match:
+                cmd1 = "dir /s /b \"%APPDATA%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx + ".lnk\""
+                rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
+                result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
+                match = re.search(r'AppData', result, re.M|re.I).group(0)
+                if not match:
+                    print("ERROR, Fail to open {}".format(wiresharkx))
+                    # os.kill(os.getpid(), signal.SIGABRT)
+                    exit_sig(None, None)
+
+        # print(result)
+        cmd1 = "powershell -Command \"(New-Object -ComObject WScript.Shell).CreateShortcut('" + r"{}".format(result) + "').TargetPath\""
+        # print(cmd1)
+        rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
+        result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
+        # print(result)
+        wiresharkx = result
+
+        print("store wireshark@{}...".format(wiresharkx))
+        pargs = [wiresharkx, "-k", "-i", "-"]
         ## check_output　is similar with popen except that the stdout　invalid for user in check output 
         self.wait_subprocess.append(subprocess.check_output(pargs, stdin=inputd))
+        exit_sig(None, None)
 
     def rshark_sniffer_dir(self, user, ip, port):
         return
@@ -575,7 +677,7 @@ config wifi-iface 'default_radio1'
             pargs.append("port")
             pargs.append(str(self.rport))
 
-        #print(pargs)
+        # print(pargs)
         print("starting sniffer.....")
 
         #print(pargs)
@@ -675,9 +777,8 @@ if __name__ == "__main__":
                 print("WARNING! remote ip address required, use first one {}!".format(args.ip))
 
     if not (args.type and args.user and args.password and args.dst and args.interface and args.channel):
-        if args.conf:
-            lhost = rshark_lookup_hosts(args.ip, True, True)
-        else:
+        lhost = rshark_lookup_hosts(args.ip, False, True)
+        if not lhost:
             print("ERROR, Miss some parameters!")
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
@@ -691,11 +792,11 @@ if __name__ == "__main__":
 
     shark = Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout)
     # record runing device
-    cli_running = True
-    cli_running_ip = args.ip
-    cli_running_intf = args.interface
-    if rshark_check_running(args.ip, args.interface):
-        sys.exit()
+    # cli_running = True
+    # cli_running_ip = args.ip
+    # cli_running_intf = args.interface
+    # if rshark_check_running(args.ip, args.interface):
+        # sys.exit()
 
     signal.signal(signal.SIGINT, exit_sig)
     signal.signal(signal.SIGTERM, exit_sig)
