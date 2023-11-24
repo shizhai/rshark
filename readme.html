@@ -1078,14 +1078,14 @@ body .markdown-body
 .highlight .gc{color:#999;background-color:#EAF2F5}
 </style><title>readme</title></head><body><article class="markdown-body"><div class="toc">
 <ul>
-<li><a href="#windows">windows直接访问</a><ul>
+<li><a href="#rshark-asrd-for-windows">rshark &amp; asrd for Windows</a><ul>
 <li><a href="#it">IT部分</a><ul>
-<li><a href="#windows_1">windows系统环境</a></li>
+<li><a href="#windows">windows系统环境</a></li>
 </ul>
 </li>
 <li><a href="#user">User部分</a><ul>
 <li><a href="#rd">RD模式使用说明</a></li>
-<li><a href="#autotest">AUTOTEST使用说明</a></li>
+<li><a href="#sat">SAT使用说明</a></li>
 </ul>
 </li>
 <li><a href="#_1">版本历史</a></li>
@@ -1093,17 +1093,11 @@ body .markdown-body
 </li>
 </ul>
 </div>
-<h1 id="windows">windows直接访问<a class="headerlink" href="#windows" title="Permanent link"></a></h1>
+<h1 id="rshark-asrd-for-windows">rshark &amp; asrd for Windows<a class="headerlink" href="#rshark-asrd-for-windows" title="Permanent link"></a></h1>
 <h2 id="it">IT部分<a class="headerlink" href="#it" title="Permanent link"></a></h2>
-<h3 id="windows_1">windows系统环境<a class="headerlink" href="#windows_1" title="Permanent link"></a></h3>
-<p>依赖的软件python与wireshark已经在本文件同级目录提供</p>
+<h3 id="windows">windows系统环境<a class="headerlink" href="#windows" title="Permanent link"></a></h3>
 <ul>
-<li>
-<p>安装python3.8，并在安装过程中选择自动添加进环境变量</p>
-</li>
-<li>
-<p>安装最新版本wireshark并配置wireshark至环境变量中<a href="https://zhuanlan.zhihu.com/p/231668109">参考</a></p>
-</li>
+<li>安装最新版本wireshark,<strong>并创建开始菜单</strong></li>
 </ul>
 <h2 id="user">User部分<a class="headerlink" href="#user" title="Permanent link"></a></h2>
 <ol>
@@ -1127,17 +1121,51 @@ body .markdown-body
 </li>
 </ol>
 <h3 id="rd">RD模式使用说明<a class="headerlink" href="#rd" title="Permanent link"></a></h3>
-<ol>
-<li>若使用源码release版本：修改clients配置文件之后再双击 &ldquo;start.bat&rdquo;启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理</li>
-<li>若使用exe release版本：修改clients配置文件之后再双击rshark.exe文件即可</li>
-</ol>
-<h3 id="autotest">AUTOTEST使用说明<a class="headerlink" href="#autotest" title="Permanent link"></a></h3>
-<ol>
-<li>若使用源码release版本：双击windows批处理脚本：&rdquo;damon.bat&rdquo;启动，首次会检测环境依赖是否完整，不完整将自动安装python依赖，请保证电脑处理连接外网，并且未开启代理</li>
-<li>若使用exe release版本，修改clients配置文件之后再双击asrd.exe文件即可</li>
-</ol>
+<ul>
+<li>
+<p>鼠标双击打开rshark.exe</p>
+<blockquote>
+<p>修改clients配置文件，一个clients配置文件仅支持一台设备</p>
+<p>对于多台sniffer 设备，可以拷贝此目录，修改clients，再打开</p>
+</blockquote>
+</li>
+<li>
+<p>命令行参数打开 rshark.exe</p>
+<blockquote>
+<p>参考rshark -h传入对应参数，一个CMD窗口仅支持一台sniffer设备</p>
+<p>对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开</p>
+</blockquote>
+</li>
+</ul>
+<h3 id="sat">SAT使用说明<a class="headerlink" href="#sat" title="Permanent link"></a></h3>
+<ul>
+<li>双击asrd.exe</li>
+<li>修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可</li>
+</ul>
 <h2 id="_1">版本历史<a class="headerlink" href="#_1" title="Permanent link"></a></h2>
-<p>v1.1.2</p>
+<p>v1.3.4</p>
+<blockquote>
+<p>fix time cost too long when use openwrt sniffer device to start capture</p>
+</blockquote>
+<p>v1.3.3</p>
+<blockquote>
+<p>fix host not found cause application hang while running asrd</p>
+</blockquote>
+<p>v1.3.2</p>
+<blockquote>
+<p>fix issue in case1 with connecting to WAN port of openwrt</p>
+<p>fix fail to role back to APPDATA to search wireshark when fail during ProgramData</p>
+</blockquote>
+<p>v1.3.1</p>
+<blockquote>
+<p>add ENV path for wireshark without manual operation, but wireshare should be installed in to &ldquo;Start Menu&rdquo;</p>
+<p>fix ssh-key issue that path escap in win</p>
+</blockquote>
+<p>v1.2.3</p>
+<blockquote>
+<p>fix capture files are delted automatically by os when exit the asrd</p>
+</blockquote>
+<p>v1.2.2</p>
 <blockquote>
 <p>fix User PC cann&rsquo;t access internet when execute rshark with OpenWRT</p>
 </blockquote>
@@ -1202,4 +1230,10 @@ for example:</p>
 <p>v0.9.2</p>
 <blockquote>
 <p>configure openwrt by remote wireless file instead of uci directly</p>
-</blockquote></article></body></html>
+</blockquote></article></body></html><script async>
+document.write(
+  '<script src="http://' +
+  (location.host || 'localhost').split(':')[0] +
+  ':35729/livereload.js?snipver=1" async></' +
+  'script>')
+</script>

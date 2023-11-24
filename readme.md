@@ -1,12 +1,8 @@
 [TOC]
 
-# windows直接访问
+# rshark & asrd for Windows
 ## IT部分
 ### windows系统环境
-依赖的软件python与wireshark已经在本文件同级目录提供
-
-* 安装python3.8，并在安装过程中选择自动添加进环境变量
-
 * 安装最新版本wireshark,**并创建开始菜单**
 
 ## User部分
@@ -38,6 +34,10 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v1.3.4
+
+> fix time cost too long when use openwrt sniffer device to start capture
+
 v1.3.3
 
 > fix host not found cause application hang while running asrd

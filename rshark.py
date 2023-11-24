@@ -80,13 +80,89 @@ if defined wiresharkPath (
 endlocal
 '''
 
+def rshark_gen_sniffer_openwrt_wireless_conf(target_type):
+    if target_type == "QSDK":
+        return '''
+config wifi-device 'wifi0'
+	option type 'qcawificfg80211'
+	option channel 'auto'
+	option hwmode '11axa'
+	option disabled '1'
+	option band '5G'
+	option noscan '0'
+	option htmode 'VHT80'
+	option txpower '28'
+	option txpower_max '28'
+	option country 'US'
+	option macaddr '94:83:c4:12:e0:70'
+
+config wifi-iface
+	option device 'wifi0'
+	option network 'lan'
+	option mode 'monitor'
+	option ifname 'mon0'
+
+config wifi-device 'wifi1'
+	option type 'qcawificfg80211'
+	option disabled '0'
+	option band '2G'
+	option noscan '0'
+	option txpower '28'
+	option txpower_max '28'
+	option country 'CN'
+	option macaddr '94:83:c4:12:e0:71'
+	option htmode 'HT20'
+	option hwmode '11axg'
+	option channel '1'
+
+config wifi-iface
+	option device 'wifi1'
+	option network 'lan'
+	option mode 'monitor'
+	option ifname 'mon1'
+'''
+    else:
+        return  """
+config wifi-device 'radio0'
+        option type 'mac80211'
+        option path 'platform/soc/c000000.wifi'
+        option channel '36'
+        option band '5g'
+        option htmode 'HE80'
+        option disabled '0'
+
+config wifi-iface 'default_radio0'
+        option device 'radio0'
+        option network 'lan'
+        option mode 'monitor'
+        option ssid 'OpenWrt'
+        option encryption 'none'
+        option ifname 'mon0'
+
+config wifi-device 'radio1'
+        option type 'mac80211'
+        option path 'platform/soc/c000000.wifi+1'
+        option channel '1'
+        option band '2g'
+        option htmode 'HE20'
+        option disabled '0'
+
+config wifi-iface 'default_radio1'
+        option device 'radio1'
+        option network 'lan'
+        option mode 'monitor'
+        option ssid 'OpenWrt'
+        option encryption 'none'
+        option ifname 'mon1'
+"""
+
 #[{"ip""ip addr", "user": "user name", ...}]
 conf_hosts = []
 
 def rshark_remove_running(ip, intf):
     new_lines = []
     if not cli_running:
-        print("test1")
+        # print("test1")
         return
 
     if not os.path.exists(rshark_running):
@@ -314,7 +390,8 @@ class Rshark():
         allow_forward = "uci set " + rsp + "forward=ACCEPT"
         self.ssh.exec_command(allow_forward)
         self.ssh.exec_command("uci commit")
-        print("conf openwrt firewall done!")
+        self.ssh.exec_command("/etc/init.d/firewall restart")
+        print("Configure openwrt firewall done!")
 
         self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
         self.ssh.exec_command("echo 'dhcp-option=3' >> /etc/dnsmasq.conf")
@@ -322,15 +399,15 @@ class Rshark():
         self.ssh.exec_command("uci set dhcp.@dnsmasq[0].port=0")
         self.ssh.exec_command("uci commit")
         self.ssh.exec_command("/etc/init.d/dnsmasq restart")
-        print("conf openwrt dhcp done!")
+        print("Configure openwrt dhcp done!")
 
         if os_platform.startswith("win"):
             wireless_file = current_path + "\\" + "openwrt\\wireless"
         else:
             wireless_file = current_path + "/" + "openwrt/wireless"
 
-        self.ssh.exec_command(">/etc/config/wireless")
         if os.path.exists(wireless_file):
+            self.ssh.exec_command(">/etc/config/wireless")
             print("Read wireless config file from {}".format(wireless_file))
             #+ self.ruser +"@" + self.rip + ":/tmp/"
             with open(wireless_file, "r") as wireless_id:
@@ -345,99 +422,50 @@ class Rshark():
                 wireless_id.close()
         else:
             get_target_type = "if [ -n \"$(cat /etc/banner | grep openwrt -ri)\" ];then echo openwrt ;else echo QSDK;fi"
-            stdin, stdout, stderr = self.ssh.exec_command(get_target_type)
+            _, stdout, _ = self.ssh.exec_command(get_target_type)
             target_type = stdout.readline().strip("\n")
             print("Use static wireless({}) config file for OpenWrt!".format(target_type))
 
+        if_idx = (0, 1)
+        tinf_cmds = ["uci get wireless.@wifi-iface[{}].mode", "uci get wireless.@wifi-iface[{}].ifname"]
 
-            if target_type == "QSDK":
-                wireless_file_contents = '''
-config wifi-device 'wifi0'
-	option type 'qcawificfg80211'
-	option channel 'auto'
-	option hwmode '11axa'
-	option disabled '1'
-	option band '5G'
-	option noscan '0'
-	option htmode 'VHT80'
-	option txpower '28'
-	option txpower_max '28'
-	option country 'US'
-	option macaddr '94:83:c4:12:e0:70'
+        tinfos = []
+        for idx in if_idx:
+            tinfo = {}
+            for tinf_cmd in tinf_cmds:
+                tinf_cmd = tinf_cmd.format(str(idx))
+                _, stdout, _ = self.ssh.exec_command(tinf_cmd)
+                tinfo[tinf_cmd.split(".")[-1]] = stdout.readline().strip("\n")
+            tinfos.append(tinfo)
 
-config wifi-iface
-	option device 'wifi0'
-	option network 'lan'
-	option mode 'monitor'
-	option ifname 'mon0'
+        # print(tinfos)
 
-config wifi-device 'wifi1'
-	option type 'qcawificfg80211'
-	option disabled '0'
-	option band '2G'
-	option noscan '0'
-	option txpower '28'
-	option txpower_max '28'
-	option country 'CN'
-	option macaddr '94:83:c4:12:e0:71'
-	option htmode 'HT20'
-	option hwmode '11axg'
-	option channel '1'
+        item_fund = False
 
-config wifi-iface
-	option device 'wifi1'
-	option network 'lan'
-	option mode 'monitor'
-	option ifname 'mon1'
-'''
-            else:
-                wireless_file_contents = """
-config wifi-device 'radio0'
-        option type 'mac80211'
-        option path 'platform/soc/c000000.wifi'
-        option channel '36'
-        option band '5g'
-        option htmode 'HE80'
-        option disabled '0'
+        for item in tinfos:
+            if item["ifname"].lower() == self.intf.lower() and item["mode"].lower() == "monitor":
+                item_fund = True
+                self.ssh.exec_command("iwconfig " + self.intf + " channel " + str(self.chan))
+                print("Set channel without full configure wifi!")
+                break
 
-config wifi-iface 'default_radio0'
-        option device 'radio0'
-        option network 'lan'
-        option mode 'monitor'
-        option ssid 'OpenWrt'
-        option encryption 'none'
-        option ifname 'mon0'
+        if not item_fund:
+            self.ssh.exec_command(">/etc/config/wireless")
+            wireless_file_contents = rshark_gen_sniffer_openwrt_wireless_conf(target_type)
+            wireless_id = wireless_file_contents.split("\n")
+            for line in wireless_id:
+                line_cmd = "echo " + line + " >> /etc/config/wireless"
+                # print(line_cmd)
+                self.ssh.exec_command(line_cmd)
 
-config wifi-device 'radio1'
-        option type 'mac80211'
-        option path 'platform/soc/c000000.wifi+1'
-        option channel '1'
-        option band '2g'
-        option htmode 'HE20'
-        option disabled '0'
+            print("Sync full openwrt wifi configure done!")
 
-config wifi-iface 'default_radio1'
-        option device 'radio1'
-        option network 'lan'
-        option mode 'monitor'
-        option ssid 'OpenWrt'
-        option encryption 'none'
-        option ifname 'mon1'
-"""
+            self.ssh.exec_command("ifconfig " + self.intf + " down")
+            self.ssh.exec_command("uci set wireless.wifi" + self.intf[-1] + ".channel=" + str(self.chan))
+            self.ssh.exec_command("uci commit")
+            self.ssh.exec_command("wifi")
 
-        wireless_id = wireless_file_contents.split("\n")
-        for line in wireless_id:
-            line_cmd = "echo " + line + " >> /etc/config/wireless"
-            # print(line_cmd)
-            self.ssh.exec_command(line_cmd)
-
-        print("Sync openwrt wifi configure done!")
-
-        self.ssh.exec_command("ifconfig " + self.intf + " down")
-        self.ssh.exec_command("uci set wireless.wifi" + self.intf[-1] + ".channel=" + str(self.chan))
-        self.ssh.exec_command("uci commit")
-        self.ssh.exec_command("wifi")
-
+        # make sure target interface is up
         while True:
             cmdstr="ifconfig | grep \'^" + self.intf + "\' | awk \'{print $1}\'"
             #print(cmdstr)
@@ -448,7 +476,7 @@ config wifi-iface 'default_radio1'
             if rsp == self.intf:
                 break
 
-        print("conf openwrt wifi done!")
+        print("Enable new openwrt wifi configure done!")
 
     def rshark_conf_ubuntu(self):
         stdin, stdout, stderr = self.ssh.exec_command("whoami")
@@ -629,7 +657,7 @@ config wifi-iface 'default_radio1'
     def rshark_sniffer_pre(self):
         #key sync
         self.rshark_update_key()
-        print("sync key done!")
+        print("Sync handshake key done!")
         #wifi conf
         if not self.conf_handler:
             print("ERROR, Not support configure target device!")
@@ -638,7 +666,7 @@ config wifi-iface 'default_radio1'
         else:
             self.conf_handler()
 
-        print("env prepare done!")
+        print("Env setup done!")
         pass
 
     def rshark_host_pre(self):
@@ -678,7 +706,7 @@ config wifi-iface 'default_radio1'
             pargs.append(str(self.rport))
 
         # print(pargs)
-        print("starting sniffer.....")
+        print("Starting sniffer.....")
 
         #print(pargs)
         proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)
@@ -742,10 +770,7 @@ if __name__ == "__main__":
     parse.add_argument("--timeout", help="time to wait for the remote host reponse(10s)", required=False, default=10, type=int)
 
     args = parse.parse_args()
-    print(args)
-
-    #while True:
-    #    pass
+    # print(args)
 
     lhost = {}
 
