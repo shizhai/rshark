@@ -4,3 +4,5 @@ venv
 stores
 asrd.log
 asrd.spec
+dist
+build
