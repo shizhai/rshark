@@ -19,9 +19,10 @@ if [ "$2" == "venv" ];then
     source venv/bin/activate
 fi
 
-pip3 install pyOpenSSL
-pip3 install wheel
-pip3 install paramiko
-pip3 install pexpect
-pip3 install argparse
-pip3 install pycryptodome
+# from requirement
+#pip3 install pyOpenSSL -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#pip3 install wheel -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#pip3 install paramiko -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#pip3 install pexpect -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#pip3 install argparse -i https://pypi.tuna.tsinghua.edu.cn/simple/
+#pip3 install pycryptodome -i https://pypi.tuna.tsinghua.edu.cn/simple/

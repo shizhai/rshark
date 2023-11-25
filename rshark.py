@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import tk
 import re
 import threading
 import time
@@ -12,7 +13,13 @@ import os
 import subprocess
 import paramiko
 import pexpect
+
 from pexpect import popen_spawn
+from pyshark.capture.pipe_capture import PipeCapture
+
+import tkinter
+
+from tkinter import simpledialog
 
 #Popen 对象方法
 # poll(): 检查进程是否终止，如果终止返回 returncode，否则返回 None。
@@ -22,6 +29,7 @@ from pexpect import popen_spawn
 # terminate(): 停止子进程,也就是发送SIGTERM信号到子进程。
 # kill(): 杀死子进程。发送 SIGKILL 信号到子进程。
 
+use_msgbox=True
 cli_running=False
 cli_running_ip=None
 cli_running_intf=None
@@ -271,6 +279,8 @@ def rshark_get_hosts(useTunnel):
 
 class Rshark():
     def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, macs, timeout):
+        # { mac1: { mac2: {rssi:x, mgt_retry_cnt:x, mgt_pkt_cnt:x, mgt_rate_avg: x, data_retry_cnt:x, data_pkt_cnt: x, data_rate_avg: x}, mac3: {...}}}
+        self.data_cache = []
         self.rip = rip
         self.rport = rport
         self.ruser = ruser
@@ -282,7 +292,8 @@ class Rshark():
         self.start_eventq = queue.Queue()
         self.store_types = {
             "local": {"cb": self.rshark_store_local, "arg": None, "need_path": True},
-            "wireshark": {"cb": self.rshark_store_wireshark, "arg": None, "need_path": False}
+            "wireshark": {"cb": self.rshark_store_wireshark, "arg": None, "need_path": False},
+            "pyshark": {"cb": self.rshark_store_pyshark, "arg": None, "need_path": False}
         }
 
         store_tmp = lstore.split("://", 1)
@@ -630,19 +641,32 @@ class Rshark():
                     # os.kill(os.getpid(), signal.SIGABRT)
                     exit_sig(None, None)
 
-        # print(result)
-        cmd1 = "powershell -Command \"(New-Object -ComObject WScript.Shell).CreateShortcut('" + r"{}".format(result) + "').TargetPath\""
-        # print(cmd1)
-        rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
-        result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
-        # print(result)
-        wiresharkx = result
+            # print(result)
+            cmd1 = "powershell -Command \"(New-Object -ComObject WScript.Shell).CreateShortcut('" + r"{}".format(result) + "').TargetPath\""
+            # print(cmd1)
+            rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
+            result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
+            # print(result)
+            wiresharkx = result
 
         print("store wireshark@{}...".format(wiresharkx))
         pargs = [wiresharkx, "-k", "-i", "-"]
         ## check_output　is similar with popen except that the stdout　invalid for user in check output 
         self.wait_subprocess.append(subprocess.check_output(pargs, stdin=inputd))
         exit_sig(None, None)
+
+    def rshark_store_pyshark(self, arg, inputd):
+        pipc = PipeCapture(pipe=inputd)
+        print(pipc.get_parameters()) 
+        pkts = pipc._packets_from_tshark_sync()
+        for pkt in pkts:
+            if pkt.wlan:
+                frame_type = pkt.wlan.fc_type
+                frame_subtype = pkt.wlan.fc_subtype
+                print(pkt.wlan)
+                ra = pkt.wlan.da if pkt.wlan.da else "None"
+                ta = pkt.wlan.sa if pkt.wlan.sa else "None"
+                # print(frame_type, frame_subtype, ra, ta)
 
     def rshark_sniffer_dir(self, user, ip, port):
         return
@@ -753,6 +777,59 @@ def rshark_conf_init(conf):
         rshark_from_conf(conf)
         #print(conf_hosts)
 
+def rshark_msgbox_info():
+    root = tkinter.Tk()
+    ws = root.winfo_screenwidth()
+    wh = root.winfo_screenheight()
+
+    root.title("Target info for rshark")
+    # root['height'] = 110
+    # root['width'] = 110
+
+    # root.resizable(0, 0)
+
+    root.rowconfigure(index=list(range(0, 8)), minsize=1)
+    root.columnconfigure([0, 1], minsize=50)
+
+    w = 300
+    h = 210
+
+    x = (ws / 2) - (w / 2)
+    y = (wh / 2) - (h / 2)
+
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+    rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": "1", "interface": "mon1", "type": "openwrt", "dst": "wireshark://."}
+    wrinfo = {}
+    idx = 0
+
+    for item in rinfo:
+        wrinfo["label" + item] = tkinter.Label(root, text=item + ": ")
+        wrinfo["value" + item] = tkinter.Entry(root, width=20)
+        wrinfo["value" + item].insert(0, rinfo[item])
+        wrinfo["label" + item].grid(row=idx, column=0, sticky="e", padx=5)
+        wrinfo["value" + item].grid(row=idx, column=1, sticky="w", padx=5)
+        idx = idx + 1
+
+    def get_infos(*args):
+        for item in rinfo:
+            input = wrinfo["value" + item].get()
+            if not input or rinfo[item] == input:
+                continue
+            else:
+                rinfo[item] = input
+            print(input)
+        root.destroy()
+
+    root.bind('<Return>', get_infos)
+
+    btn_ok = tkinter.Button(root, text="OK", command=get_infos)
+    btn_ok.grid(row=idx, column=1, sticky="e", padx=5)
+
+    root.mainloop()
+
+    return rinfo
+
 if __name__ == "__main__":
     #https://docs.python.org/zh-cn/3/library/argparse.html
     parse = argparse.ArgumentParser(description="Start sniffer with cli, target(openwrt) configure file can be store to openwrt/wireless or use inner static file")
@@ -774,7 +851,8 @@ if __name__ == "__main__":
 
     lhost = {}
 
-    if not (args.ip and args.conf):
+    # if we support msgbox now, so comment this
+    if not use_msgbox and not (args.ip and args.conf):
         if os.path.exists("./clients"):
             args.conf = "./clients"
             print("no parameter input but find local conf file clients, use it!")
@@ -789,7 +867,17 @@ if __name__ == "__main__":
 
     if not args.ip:
         if not args.conf:
-            print("ERROR! remote ip address required and not configure file found!")
+            if not use_msgbox:
+                print("ERROR! remote ip address required and not configure file found!")
+            else:
+                msgbox_info = rshark_msgbox_info() 
+                args.type = msgbox_info["type"]
+                args.user = msgbox_info["user"]
+                args.password = msgbox_info["password"]
+                args.ip = msgbox_info["ip"]
+                args.interface = msgbox_info["interface"]
+                args.dst = msgbox_info["dst"]
+                args.channel = msgbox_info["channel"]
         else:
             for item in conf_hosts:
                 if item["usetunnel"]:

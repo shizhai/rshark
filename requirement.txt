@@ -1,0 +1,9 @@
+pyOpenSSL
+wheel
+paramiko
+pexpect
+argparse
+pycryptodome
+pyshark
+SQLalchemy
+tk
