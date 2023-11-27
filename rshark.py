@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
-
 import logging
-import tk
 import re
+import datetime
 import threading
 import time
 import sys
@@ -11,15 +9,15 @@ import argparse
 import queue
 import os
 import subprocess
-import paramiko
 import pexpect
+
+from paramiko import SSHClient
+from paramiko import AutoAddPolicy
 
 from pexpect import popen_spawn
 from pyshark.capture.pipe_capture import PipeCapture
 
-import tkinter
-
-from tkinter import simpledialog
+from tkinter import Tk
 
 #Popen 对象方法
 # poll(): 检查进程是否终止，如果终止返回 returncode，否则返回 None。
@@ -35,6 +33,7 @@ cli_running_ip=None
 cli_running_intf=None
 # rshark_running = os.path.split(os.path.realpath(__file__))[0] + "/rshark.running"
 rshark_running = "./rshark.running"
+pshark_data_cache = []
 
 os_platform = sys.platform.lower()
 current_path = None
@@ -51,42 +50,6 @@ else:
 def rshark_get_path_info():
     return {"platform": os_platform, "current_path": current_path, "store_parent_path": store_parent_path}
 
-def rshark_get_win_wireshark_path():
-    return '''
-@echo off
-setlocal enabledelayedexpansion
-
-REM 设置 Wireshark 快捷方式名称
-set "shortcutName=Wireshark"
-
-REM 在 %APPDATA% 中查找 Wireshark 快捷方式
-for /f "tokens=*" %%a in ('dir /s /b "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\%shortcutName%.lnk"') do (
-    set "shortcutPath=%%a"
-)
-
-REM 在 %ProgramData% 中查找 Wireshark 快捷方式（所有用户）
-if not defined shortcutPath (
-    for /f "tokens=*" %%a in ('dir /s /b "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\%shortcutName%.lnk"') do (
-        set "shortcutPath=%%a"
-    )
-)
-
-REM 提取 Wireshark 安装路径
-if defined shortcutPath (
-    for /f "tokens=2*" %%b in ('powershell -Command "(New-Object -ComObject WScript.Shell).CreateShortcut('!shortcutPath!').TargetPath"') do (
-		set "wiresharkPath=%%b"
-    )
-)
-
-REM 打印 Wireshark 的安装路径
-if defined wiresharkPath (
-    echo !wiresharkPath!
-) else (
-    echo none
-)
-
-endlocal
-'''
 
 def rshark_gen_sniffer_openwrt_wireless_conf(target_type):
     if target_type == "QSDK":
@@ -225,6 +188,9 @@ def rshark_check_running(ip, intf):
 
 def exit_sig(signum, frame):
     rshark_remove_running(cli_running_ip, cli_running_intf)
+    if len(pshark_data_cache) > 0:
+        print("=========pshark cache=========")
+        print(pshark_data_cache)
     sys.exit()
 
 def rshark_from_conf(file):
@@ -278,14 +244,15 @@ def rshark_get_hosts(useTunnel):
     return rsp
 
 class Rshark():
-    def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, macs, timeout):
-        # { mac1: { mac2: {rssi:x, mgt_retry_cnt:x, mgt_pkt_cnt:x, mgt_rate_avg: x, data_retry_cnt:x, data_pkt_cnt: x, data_rate_avg: x}, mac3: {...}}}
+    def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, macs, timeout, pmacs):
+        self.parse_win = None
         self.data_cache = []
         self.rip = rip
         self.rport = rport
         self.ruser = ruser
         self.rpasswd = rpasswd
         self.macs = macs.split(",") if macs else []
+        self.pmacs = pmacs if pmacs else None
         self.timeout = timeout
         self.wait_subprocess = []
         self.exit_event = threading.Event()
@@ -293,7 +260,7 @@ class Rshark():
         self.store_types = {
             "local": {"cb": self.rshark_store_local, "arg": None, "need_path": True},
             "wireshark": {"cb": self.rshark_store_wireshark, "arg": None, "need_path": False},
-            "pyshark": {"cb": self.rshark_store_pyshark, "arg": None, "need_path": False}
+            "pshark": {"cb": self.rshark_store_pyshark, "arg": None, "need_path": False}
         }
 
         store_tmp = lstore.split("://", 1)
@@ -343,8 +310,8 @@ class Rshark():
                 ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa -q"
                 subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
 
-        self.ssh = paramiko.SSHClient()
-        key = paramiko.AutoAddPolicy()
+        self.ssh = SSHClient()
+        key = AutoAddPolicy()
         self.ssh.set_missing_host_key_policy(key)
 
         self.ssh.connect(self.rip, self.rport, self.ruser, self.rpasswd, timeout=self.timeout)
@@ -403,6 +370,12 @@ class Rshark():
         self.ssh.exec_command("uci commit")
         self.ssh.exec_command("/etc/init.d/firewall restart")
         print("Configure openwrt firewall done!")
+
+        self.ssh.exec_command("uci set system.@system[0].timezone=\'CST-8\'")
+        self.ssh.exec_command("uci set system.@system[0].zonename=\'Asia/Shanghai\'")
+        self.ssh.exec_command("uci commit")
+        self.ssh.exec_command("date -s " + str(datetime.datetime.now()).split(".")[0])
+        print("Configure openwrt time {} done!".format(str(datetime.datetime.now()).split(".")[0]))
 
         self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
         self.ssh.exec_command("echo 'dhcp-option=3' >> /etc/dnsmasq.conf")
@@ -655,18 +628,75 @@ class Rshark():
         self.wait_subprocess.append(subprocess.check_output(pargs, stdin=inputd))
         exit_sig(None, None)
 
+    def rshark_store_addb(self, tx, rx, rssi, type, retry):
+        found = False
+        if tx not in self.pmacs or rx not in self.pmacs:
+            if not "-" in self.pmacs:
+                return
+
+        if rx not in self.pmacs[tx]:
+            if not "-" in self.pmacs:
+                return
+
+        for item in self.data_cache:
+            if tx in item and rx in item[tx]:
+                item_tx = item[tx]
+                item_tx_rx = item_tx[rx]
+                item_tx_rx_type = item_tx_rx[type]
+                item_tx_rx_type["rssi"] = item_tx_rx_type["rssi"] + int(rssi)
+                item_tx_rx_type["rssi_cnt"] = item_tx_rx_type["rssi_cnt"] + 1 if int(rssi) != 0 else item_tx_rx_type["rssi_cnt"]
+                item_tx_rx_type["cnt"] = item_tx_rx_type["cnt"] + 1 if not retry else item_tx_rx_type["cnt"]
+                item_tx_rx_type["retry"] = item_tx_rx_type["retry"] + 1 if retry else item_tx_rx_type["retry"]
+                found = True
+                break
+        if not found:
+            item_insert = {}
+            item_tx_rx_type = {}
+            item_tx_rx_type["rssi"] = int(rssi)
+            item_tx_rx_type["rssi_cnt"] = 1 if int(rssi) != 0 else 0
+            item_tx_rx_type["cnt"] = 1
+            item_tx_rx_type["retry"] = 1 if retry else 0
+            item_tx_rx = {}
+            item_tx_rx[type] = item_tx_rx_type
+            item_tx = {}
+            item_tx[rx] = item_tx_rx
+            item_rx = {}
+            item_rx = item_tx
+            item_insert[tx] = item_rx
+            self.data_cache.append(item_insert)
+            pshark_data_cache.append(item_insert)
+            print(self.data_cache)
+
     def rshark_store_pyshark(self, arg, inputd):
+        self.parse_win = Tk()
         pipc = PipeCapture(pipe=inputd)
-        print(pipc.get_parameters()) 
+        # print(pipc.get_parameters()) 
         pkts = pipc._packets_from_tshark_sync()
         for pkt in pkts:
-            if pkt.wlan:
-                frame_type = pkt.wlan.fc_type
-                frame_subtype = pkt.wlan.fc_subtype
-                print(pkt.wlan)
-                ra = pkt.wlan.da if pkt.wlan.da else "None"
-                ta = pkt.wlan.sa if pkt.wlan.sa else "None"
-                # print(frame_type, frame_subtype, ra, ta)
+            if not hasattr(pkt, 'wlan') or not hasattr(pkt.wlan, 'fc_type') or pkt.wlan.fc_type == 1:
+                continue
+
+            frame_type = "mgmt" if pkt.wlan.fc_type == 0 else "data"
+
+            retry = True if hasattr(pkt.wlan, "flags") and int(pkt.wlan.flags, 16) & 0x8 == 0x8 else False
+
+            # if retry:
+            #     print(type(pkt.wlan_radio))
+            #     print(pkt.wlan_radio.field_names)
+            #     sys.exit()
+
+            rssi = 0
+            if hasattr(pkt, 'wlan_radio') and hasattr(pkt.wlan_radio, 'signal_dbm'):
+                rssi = pkt.wlan_radio.signal_dbm
+                # print(pkt.wlan_radio.signal_dbm)
+
+            # frame_subtype = pkt.wlan.fc_subtype
+            # print(pkt)
+
+            ra = pkt.wlan.ra if hasattr(pkt.wlan, "ra") else "None"
+            ta = pkt.wlan.ta if hasattr(pkt.wlan, "ta") else "None"
+            # print(frame_type, frame_subtype, ra, ta)
+            self.rshark_store_addb(ta, ra, rssi, frame_type, retry)
 
     def rshark_sniffer_dir(self, user, ip, port):
         return
@@ -777,59 +807,6 @@ def rshark_conf_init(conf):
         rshark_from_conf(conf)
         #print(conf_hosts)
 
-def rshark_msgbox_info():
-    root = tkinter.Tk()
-    ws = root.winfo_screenwidth()
-    wh = root.winfo_screenheight()
-
-    root.title("Target info for rshark")
-    # root['height'] = 110
-    # root['width'] = 110
-
-    # root.resizable(0, 0)
-
-    root.rowconfigure(index=list(range(0, 8)), minsize=1)
-    root.columnconfigure([0, 1], minsize=50)
-
-    w = 300
-    h = 210
-
-    x = (ws / 2) - (w / 2)
-    y = (wh / 2) - (h / 2)
-
-    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-
-    rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": "1", "interface": "mon1", "type": "openwrt", "dst": "wireshark://."}
-    wrinfo = {}
-    idx = 0
-
-    for item in rinfo:
-        wrinfo["label" + item] = tkinter.Label(root, text=item + ": ")
-        wrinfo["value" + item] = tkinter.Entry(root, width=20)
-        wrinfo["value" + item].insert(0, rinfo[item])
-        wrinfo["label" + item].grid(row=idx, column=0, sticky="e", padx=5)
-        wrinfo["value" + item].grid(row=idx, column=1, sticky="w", padx=5)
-        idx = idx + 1
-
-    def get_infos(*args):
-        for item in rinfo:
-            input = wrinfo["value" + item].get()
-            if not input or rinfo[item] == input:
-                continue
-            else:
-                rinfo[item] = input
-            print(input)
-        root.destroy()
-
-    root.bind('<Return>', get_infos)
-
-    btn_ok = tkinter.Button(root, text="OK", command=get_infos)
-    btn_ok.grid(row=idx, column=1, sticky="e", padx=5)
-
-    root.mainloop()
-
-    return rinfo
-
 if __name__ == "__main__":
     #https://docs.python.org/zh-cn/3/library/argparse.html
     parse = argparse.ArgumentParser(description="Start sniffer with cli, target(openwrt) configure file can be store to openwrt/wireless or use inner static file")
@@ -844,6 +821,7 @@ if __name__ == "__main__":
     parse.add_argument("--type", help="the type of remote target host, default: openwrt", choices=["openwrt", "ubuntu"], required=False, type=str)
     parse.add_argument("--dst", help="where to store the sniffer log, show start with: local://yourpath OR wireshark://.", default="wireshark://.", required=False, type=str)
     parse.add_argument("--macs", help="mac list with \',\' splited to filter the target", required=False, type=str)
+    parse.add_argument("--pmacs", help="mac list with \',\' splited to parse the target", required=False, type=str)
     parse.add_argument("--timeout", help="time to wait for the remote host reponse(10s)", required=False, default=10, type=int)
 
     args = parse.parse_args()
@@ -865,19 +843,28 @@ if __name__ == "__main__":
         rshark_from_conf(args.conf)
         # print(conf_hosts)
 
+
     if not args.ip:
         if not args.conf:
             if not use_msgbox:
                 print("ERROR! remote ip address required and not configure file found!")
             else:
-                msgbox_info = rshark_msgbox_info() 
+                import rshark_msgbox
+                # msgbox_info = rshark_msgbox_info() 
+                rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",
+                         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
+
+                # rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan2mon",
+                        #  "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
+                msgbox_info = rshark_msgbox.rshark_rmsgbox(rinfo)
                 args.type = msgbox_info["type"]
                 args.user = msgbox_info["user"]
                 args.password = msgbox_info["password"]
                 args.ip = msgbox_info["ip"]
                 args.interface = msgbox_info["interface"]
-                args.dst = msgbox_info["dst"]
                 args.channel = msgbox_info["channel"]
+                args.dst = msgbox_info["stores"]
+                args.pmacs = msgbox_info["pmacs"]
         else:
             for item in conf_hosts:
                 if item["usetunnel"]:
@@ -903,7 +890,7 @@ if __name__ == "__main__":
     args.channel = lhost["channel"] if not args.channel else args.channel
     args.dst = lhost["dst"] if not args.dst else args.dst
 
-    shark = Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout)
+    shark = Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, args.pmacs)
     # record runing device
     # cli_running = True
     # cli_running_ip = args.ip

@@ -16,7 +16,9 @@
 > * chan: 需要抓取的目标信道
 > * intf(s): 抓包设备支持的所有接口列表，使用","隔开，若未传入参数，则默认使用第一个接口
 
-2. 当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改
+2. 当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改, asrd会自动识别clients， rshark在命令行通过rshark.exe –conf clients
+
+3. rshark.exe当前默认为GUI模式，会弹出窗口允许用户输入sniffer device信息
 
 ### RD模式使用说明
 * 鼠标双击打开rshark.exe
@@ -34,6 +36,11 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v1.4.1
+
+> fix wrong time stamp to sniffer log when target system is running offline by sync time to peer
+> add GUI for rshark to input target’s infomation
+
 v1.3.4
 
 > fix time cost too long when use openwrt sniffer device to start capture

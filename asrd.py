@@ -148,7 +148,7 @@ class SrvThread(threading.Thread):
         macs = self.args["macs"] if "macs" in self.args else None
         timeout = self.args["timeout"] if "timeout" in self.args else 10
         self.shark = rshark.Rshark(self.args["type"], self.args["ip"], self.args["port"], self.args["user"], \
-                              self.args["password"], self.args["dst"], self.args["interface"], self.args["channel"], macs, timeout)
+                              self.args["password"], self.args["dst"], self.args["interface"], self.args["channel"], macs, timeout, [])
     
     def run(self):
         self.shark.rshark_sniffer()

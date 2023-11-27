@@ -6,3 +6,4 @@ asrd.log
 asrd.spec
 dist
 build
+*.swp

@@ -1,3 +1,4 @@
+# we can use -i  https://pypi.tuna.tsinghua.edu.cn/simple/ to accelerate
 pyOpenSSL
 wheel
 paramiko
@@ -7,3 +8,4 @@ pycryptodome
 pyshark
 SQLalchemy
 tk
+pyinstaller
