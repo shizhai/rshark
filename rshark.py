@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import logging
 import re
 import datetime
@@ -374,7 +376,7 @@ class Rshark():
         self.ssh.exec_command("uci set system.@system[0].timezone=\'CST-8\'")
         self.ssh.exec_command("uci set system.@system[0].zonename=\'Asia/Shanghai\'")
         self.ssh.exec_command("uci commit")
-        self.ssh.exec_command("date -s " + str(datetime.datetime.now()).split(".")[0])
+        self.ssh.exec_command("date -s \"" + str(datetime.datetime.now()).split(".")[0] +"\"")
         print("Configure openwrt time {} done!".format(str(datetime.datetime.now()).split(".")[0]))
 
         self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
@@ -491,6 +493,8 @@ class Rshark():
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
         else:
+            self.ssh.exec_command("ifconfig " + self.intf + " down")
+            self.ssh.exec_command("ifconfig " + self.intf + " up")
             self.ssh.exec_command("iw dev " + self.intf + " set channel " + str(self.chan))
 
         pass
@@ -630,12 +634,11 @@ class Rshark():
 
     def rshark_store_addb(self, tx, rx, rssi, type, retry):
         found = False
-        if tx not in self.pmacs or rx not in self.pmacs:
-            if not "-" in self.pmacs:
+        if self.pmacs and not "-" in self.pmacs:
+            if tx not in self.pmacs or rx not in self.pmacs:
                 return
 
-        if rx not in self.pmacs[tx]:
-            if not "-" in self.pmacs:
+            if rx not in self.pmacs[tx]:
                 return
 
         for item in self.data_cache:
@@ -781,7 +784,6 @@ class Rshark():
                     str(time.localtime().tm_mon) + "_" +\
                     str(time.localtime().tm_mday) + "_" +\
                     str(time.localtime().tm_hour) + "_" +\
-                    str(time.localtime().tm_hour) + "_" +\
                     str(time.localtime().tm_min) + "_" +\
                     str(time.localtime().tm_sec) + ".pcapng"
         else:
@@ -854,8 +856,8 @@ if __name__ == "__main__":
                 rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",
                          "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
 
-                # rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan2mon",
-                        #  "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
+                #rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan0mon",
+                #         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
                 msgbox_info = rshark_msgbox.rshark_rmsgbox(rinfo)
                 args.type = msgbox_info["type"]
                 args.user = msgbox_info["user"]

@@ -36,9 +36,16 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v1.4.4
+
+> fix store capture file with wrong name issue
+> 
+> fix pshark issues that cann't filter pkts
+
 v1.4.1
 
 > fix wrong time stamp to sniffer log when target system is running offline by sync time to peer
+> 
 > add GUI for rshark to input target’s infomation
 
 v1.3.4
