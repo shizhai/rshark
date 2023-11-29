@@ -11,14 +11,14 @@ import argparse
 import queue
 import os
 import subprocess
-import pexpect
 
 from paramiko import SSHClient
 from paramiko import AutoAddPolicy
 
-from pexpect import popen_spawn
+# from pexpect import popen_spawn
 from pyshark.capture.pipe_capture import PipeCapture
 
+import rshark_msgbox
 from tkinter import Tk
 
 #Popen 对象方法
@@ -38,6 +38,10 @@ rshark_running = "./rshark.running"
 pshark_data_cache = []
 
 os_platform = sys.platform.lower()
+
+if not os_platform.startswith("win"):
+    import pexpect
+
 current_path = None
 store_parent_path = None
 if os_platform == "linux":
@@ -195,7 +199,7 @@ def exit_sig(signum, frame):
         print(pshark_data_cache)
     sys.exit()
 
-def rshark_from_conf(file):
+def rshark_from_conf(file, hosts_out=None):
     with open(file, "r", encoding="utf-8") as conf_file:
         while True:
             line = conf_file.readline()
@@ -223,7 +227,13 @@ def rshark_from_conf(file):
             lhost["interface"] = l[7].strip(",").split(",")
             lhost["interface"][-1] = lhost["interface"][-1].strip("\n")
             lhost["timeout"] = 10
-            conf_hosts.append(lhost)
+
+            if type(hosts_out) == list:
+                hosts_out.append(lhost)
+            else:
+                conf_hosts.append(lhost)
+
+    conf_file.close()
     pass
 
 def rshark_lookup_hosts(ip, ifraise, useTunnel):
@@ -628,7 +638,11 @@ class Rshark():
 
         print("store wireshark@{}...".format(wiresharkx))
         pargs = [wiresharkx, "-k", "-i", "-"]
+        if os_platform.startswith("win"):
+            for win_temp in ["--temp-dir", "."]:
+                pargs.append(win_temp)
         ## check_output　is similar with popen except that the stdout　invalid for user in check output 
+        # print(pargs)
         self.wait_subprocess.append(subprocess.check_output(pargs, stdin=inputd))
         exit_sig(None, None)
 
@@ -703,7 +717,7 @@ class Rshark():
 
     def rshark_sniffer_dir(self, user, ip, port):
         return
-        pargs = ["ssh", user + "@" + ip, "tcpdump", "-i", "mon1", "-U", "-s0", "-w", "-", "not", "port", str(port) ]
+        pargs = ["ssh", user + "@" + ip, "tcpdump", "-i", "mon1", "-XX", "-U", "-s0", "-w", "-", "not", "port", str(port) ]
         proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE)
         pargs = ["wireshark", "-k", "-i", "-"]
         # check_output　is similar with popen except that the stdout　invalid for user in check output 
@@ -752,17 +766,18 @@ class Rshark():
             pargs.append("host")
             pargs.append(filter)
 
-        pargs.append("-U")
-        pargs.append("-s0")
+        pargs.append("-Xxvvnn")
+        #pargs.append("-s0")
         pargs.append("-w")
         pargs.append("-")
 
-        if len(self.macs) <= 0:
-            pargs.append("not")
-            pargs.append("port")
-            pargs.append(str(self.rport))
+        # this will cause pkt missed such as QOS NULL
+        # if len(self.macs) <= 0:
+        #     pargs.append("not")
+        #     pargs.append("port")
+        #     pargs.append(str(self.rport))
 
-        # print(pargs)
+        print(pargs)
         print("Starting sniffer.....")
 
         #print(pargs)
@@ -806,7 +821,7 @@ class Rshark():
 
 def rshark_conf_init(conf):
     if conf and os.path.exists(conf):
-        rshark_from_conf(conf)
+        rshark_from_conf(conf, None)
         #print(conf_hosts)
 
 if __name__ == "__main__":
@@ -842,7 +857,7 @@ if __name__ == "__main__":
             exit_sig(None, None)
 
     if args.conf and os.path.exists(args.conf):
-        rshark_from_conf(args.conf)
+        rshark_from_conf(args.conf, None)
         # print(conf_hosts)
 
 
@@ -851,14 +866,29 @@ if __name__ == "__main__":
             if not use_msgbox:
                 print("ERROR! remote ip address required and not configure file found!")
             else:
-                import rshark_msgbox
+                hosts_out = []
+                rshark_from_conf("./clients", hosts_out=hosts_out)
+                # print(hosts_out)
                 # msgbox_info = rshark_msgbox_info() 
-                rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",
-                         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
+                rinfos = []
+                for item_host in hosts_out:
+                    rinfo = {}
+                    rinfo["user"] = item_host["user"]
+                    rinfo["password"] = item_host["password"]
+                    rinfo["port"] = item_host["port"]
+                    rinfo["ip"] = item_host["ip"]
+                    rinfo["interface"] = item_host["interface"]
+                    rinfo["type"] = item_host["type"]
+                    rinfo["channel"] = list(range(1, 13))
+                    rinfo["stores"] = ["wireshark://.", "local://.", "pshark://."]
+                    rinfos.append(rinfo)
+                #rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",
+                #         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
 
                 #rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan0mon",
                 #         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
-                msgbox_info = rshark_msgbox.rshark_rmsgbox(rinfo)
+                #print(rinfos)
+                msgbox_info = rshark_msgbox.rshark_rmsgbox(rinfos)
                 args.type = msgbox_info["type"]
                 args.user = msgbox_info["user"]
                 args.password = msgbox_info["password"]

@@ -36,6 +36,12 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v1.5.1
+
+> add extract default sniffer devices list from clients for rshark
+> 
+> move temp store dir to current dir
+
 v1.4.4
 
 > fix store capture file with wrong name issue
