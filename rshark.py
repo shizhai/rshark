@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-
-import logging
+import asyncio
 import re
 import datetime
 import threading
@@ -11,6 +10,9 @@ import argparse
 import queue
 import os
 import subprocess
+
+# from scapy import *
+# from scapy.all import sniff
 
 from paramiko import SSHClient
 from paramiko import AutoAddPolicy
@@ -29,7 +31,7 @@ from tkinter import Tk
 # terminate(): 停止子进程,也就是发送SIGTERM信号到子进程。
 # kill(): 杀死子进程。发送 SIGKILL 信号到子进程。
 
-use_msgbox=True
+use_msgbox=False
 cli_running=False
 cli_running_ip=None
 cli_running_intf=None
@@ -197,6 +199,8 @@ def exit_sig(signum, frame):
     if len(pshark_data_cache) > 0:
         print("=========pshark cache=========")
         print(pshark_data_cache)
+    
+    print("Exit with signum {}...".format(signum))
     sys.exit()
 
 def rshark_from_conf(file, hosts_out=None):
@@ -255,17 +259,29 @@ def rshark_get_hosts(useTunnel):
 
     return rsp
 
+
+def is_valid_mac_address(mac_address):
+    # 正则表达式匹配标准MAC地址格式
+    pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+    return bool(pattern.match(mac_address))
+
 class Rshark():
     def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, macs, timeout, pmacs):
         self.parse_win = None
+        self.new_eloop = None
+        self.pipc = None
         self.data_cache = []
         self.rip = rip
         self.rport = rport
         self.ruser = ruser
         self.rpasswd = rpasswd
         self.macs = macs.split(",") if macs else []
-        self.pmacs = pmacs if pmacs else None
+        self.pmacs = pmacs if pmacs else {}
         self.timeout = timeout
+        self.time_start = time.time()
+        self.time_prev = self.time_start
+        self.total_cap = 0
+        self.tcpdump_pid = 0
         self.wait_subprocess = []
         self.exit_event = threading.Event()
         self.start_eventq = queue.Queue()
@@ -340,12 +356,24 @@ class Rshark():
             kill_str = "kill -9 " + str(self.tcpdump_pid)
             self.ssh.exec_command(kill_str)
 
+        if self.pipc:
+            self.pipc.close()
+            print("Close pipe capture done!")
+
+        print("Close remote process done!")
         for item in self.wait_subprocess:
             item.kill()
+            print("Close {} process done!".format(item))
             pass
 
+        # print("Close shark eventloop done!")
+        # self.new_loop.stop()
+        # self.new_loop.close()
+
         self.exit_event.set()
+        print("Set exit event done!")
         self.ssh.close()
+        print("Close ssh done!")
 
     def __del__(self):
         self.ssh.close()
@@ -488,7 +516,7 @@ class Rshark():
         self.ssh.exec_command("service avahi-daemon stop")
         self.ssh.exec_command("for dev in `ifconfig | grep '^wl' | awk '{print $1}' | tr -d ':'`;do sudo airmon-ng check kill; airmon-ng start $dev;done")
         #print("test2")
-        stdin, stdout, stderr = self.ssh.exec_command("ifconfig | grep \'^" + str(self.intf) + "\' | awk \'{print $1}\' | tr -d ':'")
+        _, stdout, _ = self.ssh.exec_command("ifconfig | grep \'^" + str(self.intf) + "\' | awk \'{print $1}\' | tr -d ':'")
 
         response = []
         while True:
@@ -637,7 +665,7 @@ class Rshark():
             wiresharkx = result
 
         print("store wireshark@{}...".format(wiresharkx))
-        pargs = [wiresharkx, "-k", "-i", "-"]
+        pargs = [wiresharkx, "-k", "-S", "-b", "duration:5", "-i", "-"]
         if os_platform.startswith("win"):
             for win_temp in ["--temp-dir", "."]:
                 pargs.append(win_temp)
@@ -646,20 +674,44 @@ class Rshark():
         self.wait_subprocess.append(subprocess.check_output(pargs, stdin=inputd))
         exit_sig(None, None)
 
+    def rshark_set_pshark_cb(self, sub_args):
+        self.store_types["pshark"]["arg"] = sub_args
+
     def rshark_store_addb(self, tx, rx, rssi, type, retry):
         found = False
-        if self.pmacs and not "-" in self.pmacs:
-            if tx not in self.pmacs or rx not in self.pmacs:
+        # if self.pmacs and not "-" in self.pmacs:
+        #     for pmac in self.pmacs:
+        #         # print(pmac + "  for tx " + tx + " rx " + rx)
+        #         if tx == pmac and rx in self.pmacs[tx]:
+        #             found = True
+        #             break
+        #         elif rx == pmac and tx in self.pmacs[rx]:
+        #             found = True
+        #             break
+
+        if self.pmacs:
+            for pmac in self.pmacs:
+                # print(pmac + "  for tx " + tx + " rx " + rx)
+                if tx == pmac:
+                    if "-" in self.pmacs[tx] or rx in self.pmacs[tx]:
+                        found = True
+                        break
+                elif rx == pmac:
+                    if "-" in self.pmacs[rx] or tx in self.pmacs[rx]:
+                        found = True
+                        break
+
+            if not found:
                 return
 
-            if rx not in self.pmacs[tx]:
-                return
+        found = False
 
         for item in self.data_cache:
             if tx in item and rx in item[tx]:
                 item_tx = item[tx]
                 item_tx_rx = item_tx[rx]
-                item_tx_rx_type = item_tx_rx[type]
+                # item_tx_rx_type = item_tx_rx[type]
+                item_tx_rx_type = item_tx_rx
                 item_tx_rx_type["rssi"] = item_tx_rx_type["rssi"] + int(rssi)
                 item_tx_rx_type["rssi_cnt"] = item_tx_rx_type["rssi_cnt"] + 1 if int(rssi) != 0 else item_tx_rx_type["rssi_cnt"]
                 item_tx_rx_type["cnt"] = item_tx_rx_type["cnt"] + 1 if not retry else item_tx_rx_type["cnt"]
@@ -674,7 +726,8 @@ class Rshark():
             item_tx_rx_type["cnt"] = 1
             item_tx_rx_type["retry"] = 1 if retry else 0
             item_tx_rx = {}
-            item_tx_rx[type] = item_tx_rx_type
+            # item_tx_rx[type] = item_tx_rx_type
+            item_tx_rx = item_tx_rx_type
             item_tx = {}
             item_tx[rx] = item_tx_rx
             item_rx = {}
@@ -682,48 +735,104 @@ class Rshark():
             item_insert[tx] = item_rx
             self.data_cache.append(item_insert)
             pshark_data_cache.append(item_insert)
-            print(self.data_cache)
-
+            # print(self.data_cache)
+        
+        # return self.data_cache
+    
     def rshark_store_pyshark(self, arg, inputd):
-        self.parse_win = Tk()
-        pipc = PipeCapture(pipe=inputd)
-        # print(pipc.get_parameters()) 
-        pkts = pipc._packets_from_tshark_sync()
-        for pkt in pkts:
-            if not hasattr(pkt, 'wlan') or not hasattr(pkt.wlan, 'fc_type') or pkt.wlan.fc_type == 1:
-                continue
+        self.new_eloop = None
+        if arg and type(arg) == dict:
+            self.new_eloop = arg["eloop"]
+        else:
+            self.new_eloop = asyncio.get_event_loop()
 
-            frame_type = "mgmt" if pkt.wlan.fc_type == 0 else "data"
+        stop_exit = False
+        flag_exit_stop = 0
 
-            retry = True if hasattr(pkt.wlan, "flags") and int(pkt.wlan.flags, 16) & 0x8 == 0x8 else False
+        while not stop_exit:
+            try:
+                # self.new_eloop = asyncio.new_event_loop()
+                # asyncio.set_event_loop(self.new_eloop)
 
-            # if retry:
-            #     print(type(pkt.wlan_radio))
-            #     print(pkt.wlan_radio.field_names)
-            #     sys.exit()
+                self.pipc = PipeCapture(pipe=inputd, eventloop=self.new_eloop)
 
-            rssi = 0
-            if hasattr(pkt, 'wlan_radio') and hasattr(pkt.wlan_radio, 'signal_dbm'):
-                rssi = pkt.wlan_radio.signal_dbm
-                # print(pkt.wlan_radio.signal_dbm)
+                self.pipc.set_debug()
+                # print(pipc.get_parameters()) 
+                # self.tprocess = self.pipc.get_tshark_process(stdin=inputd)
+                # pkts = self.pipc.packets_from_tshark_sync(existing_process=self.tprocess)
+                pkts = self.pipc._packets_from_tshark_sync()
 
-            # frame_subtype = pkt.wlan.fc_subtype
-            # print(pkt)
+                for pkt in pkts:
+                    if flag_exit_stop > 0:
+                        print("Retry start....5")
+                        print(self.new_eloop)
+                        print(self.pipc)
+                    self.total_cap = self.total_cap + 1
+                    cur_time = time.time()
+                    if (round(cur_time - self.time_prev)) > 1:
+                        print("Rate:{:8.2f} pps /w {:8} pkts @ {:8.2f} s".format(round(self.total_cap / (cur_time - self.time_start), 2),
+                                                              self.total_cap, round(cur_time - self.time_start, 2)))
+                        self.time_prev = cur_time
 
-            ra = pkt.wlan.ra if hasattr(pkt.wlan, "ra") else "None"
-            ta = pkt.wlan.ta if hasattr(pkt.wlan, "ta") else "None"
-            # print(frame_type, frame_subtype, ra, ta)
-            self.rshark_store_addb(ta, ra, rssi, frame_type, retry)
+                    if not hasattr(pkt, 'wlan') or not hasattr(pkt.wlan, 'fc_type') or pkt.wlan.fc_type == 1:
+                        # print("skip")
+                        continue
 
-    def rshark_sniffer_dir(self, user, ip, port):
-        return
-        pargs = ["ssh", user + "@" + ip, "tcpdump", "-i", "mon1", "-XX", "-U", "-s0", "-w", "-", "not", "port", str(port) ]
-        proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE)
-        pargs = ["wireshark", "-k", "-i", "-"]
-        # check_output　is similar with popen except that the stdout　invalid for user in check output 
-        proc_wireshark = subprocess.check_output(pargs, stdin=proc_tcpdump.stdout)
-        proc_tcpdump.wait(1)
-        pass
+                    frame_type = "mgmt" if pkt.wlan.fc_type == 0 else "data"
+
+                    retry = True if hasattr(pkt.wlan, "flags") and int(pkt.wlan.flags, 16) & 0x8 == 0x8 else False
+
+                    rssi = 0
+                    if hasattr(pkt, 'wlan_radio') and hasattr(pkt.wlan_radio, 'signal_dbm'):
+                        rssi = pkt.wlan_radio.signal_dbm
+                        # print(pkt.wlan_radio.signal_dbm)
+
+                    # frame_subtype = pkt.wlan.fc_subtype
+                    if flag_exit_stop > 0:
+                        print(pkt)
+
+                    ra = pkt.wlan.ra if hasattr(pkt.wlan, "ra") else "None"
+                    ta = pkt.wlan.ta if hasattr(pkt.wlan, "ta") else "None"
+
+                    if ra == "None" or ta == "None":
+                        # print(pkt)
+                        continue
+
+                    self.rshark_store_addb(ta, ra, rssi, frame_type, retry)
+                    if arg and type(arg) == dict and callable(arg["cb"]):
+                        arg["cb"](self.data_cache)
+
+                    if self.rshark_check_event():
+                        print("User cancel shark!")
+                        self.pipc.close()
+                        stop_exit = True
+                        break
+
+                time.sleep(1)
+                self.pipc.reset()
+                self.pipc.clear()
+                self.pipc.close()
+
+                # if self.new_eloop.is_running:
+                #     self.new_eloop.stop()
+
+                # if not self.new_eloop.is_closed:
+                #     self.new_eloop.close()
+
+                flag_exit_stop = flag_exit_stop + 1
+                print("Exit and Retry:{}!".format("False" if stop_exit else "True"))
+            except OSError:
+                self.pipc.reset()
+                self.pipc.clear()
+                flag_exit_stop = flag_exit_stop + 1
+                print("Exception and Retry:{}!".format("False" if stop_exit else "True"))
+                time.sleep(1)
+                print(flag_exit_stop)
+
+            if self.rshark_check_event():
+                print("User cancel shark!")
+                self.pipc.close()
+                break
 
     def rshark_sniffer_pre(self):
         #key sync
@@ -744,6 +853,17 @@ class Rshark():
         pargs = ["./mount-qa.sh"]
         mount = subprocess.Popen(pargs, None)
 
+    def rshark_check_tcpdump(self):
+        remote_pid_cmd = self.rtypes[self.rtype]["ps"].format(self.intf)
+        while True:
+            _, stdout, _ = self.ssh.exec_command(remote_pid_cmd)
+            rsp = stdout.readline().strip("\n ")
+            if rsp:
+                return int(rsp)
+
+    def rshark_get_tcpdump_pid(self):
+        return self.tcpdump_pid
+
     def rshark_sniffer(self):
         #prepare env
         self.rshark_sniffer_pre()
@@ -761,10 +881,25 @@ class Rshark():
         pargs.append("-i")
         pargs.append(str(self.intf))
 
-        for filter in self.macs:
+        fmacs = []
+        for filter_item in self.pmacs:
+            fmacs.append(filter_item)
+
+        for filter_item in self.macs:
+            fmacs.append(filter_item)
+
+        fmacs = list(dict.fromkeys(fmacs))
+        fmacs = list(filter(is_valid_mac_address, fmacs))
+        # print(fmacs)
+
+        for f in fmacs:
             pargs.append("ether")
             pargs.append("host")
-            pargs.append(filter)
+            pargs.append(f)
+            pargs.append("or")
+
+        if self.pmacs or self.macs:
+            pargs.pop(-1)
 
         pargs.append("-Xxvvnn")
         #pargs.append("-s0")
@@ -778,20 +913,24 @@ class Rshark():
         #     pargs.append(str(self.rport))
 
         print(pargs)
-        print("Starting sniffer.....")
+        print("Starting sniffer@channel[{}].....".format(self.chan))
 
         #print(pargs)
         proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)
+
+        # self.proc_tcpdump = await asyncio.create_subprocess_exec(pargs, stdout=subprocess.PIPE, stderr=None)
+        
         self.wait_subprocess.append(proc_tcpdump)
 
-        remote_pid_cmd = self.rtypes[self.rtype]["ps"].format(self.intf)
-        #print("remote pid cmd: ", remote_pid_cmd)
-        while True:
-            stdin, stdout, stderr = self.ssh.exec_command(remote_pid_cmd)
-            rsp = stdout.readline().strip("\n ")
-            if rsp:
-                self.tcpdump_pid = int(rsp)
-                break
+        # remote_pid_cmd = self.rtypes[self.rtype]["ps"].format(self.intf)
+        # #print("remote pid cmd: ", remote_pid_cmd)
+        # while True:
+        #     stdin, stdout, stderr = self.ssh.exec_command(remote_pid_cmd)
+        #     rsp = stdout.readline().strip("\n ")
+        #     if rsp:
+        #         self.tcpdump_pid = int(rsp)
+        #         break
+        self.tcpdump_pid = self.rshark_check_tcpdump()
         
         if self.store_types[self.store_type]["need_path"]:
             #tm_year=2023, tm_mon=11, tm_mday=13, tm_hour=15, tm_min=44, tm_sec=4, tm_wday=0, tm_yday=317, tm_isdst=0
@@ -817,6 +956,8 @@ class Rshark():
         #     proc_tcpdump.wait(1)
         self.wait_subprocess.remove(proc_tcpdump)
         proc_tcpdump.kill()
+        proc_tcpdump.communicate()
+        proc_tcpdump.wait(5)
         rshark_remove_running(self.rip, self.intf)
 
 def rshark_conf_init(conf):
@@ -879,7 +1020,7 @@ if __name__ == "__main__":
                     rinfo["ip"] = item_host["ip"]
                     rinfo["interface"] = item_host["interface"]
                     rinfo["type"] = item_host["type"]
-                    rinfo["channel"] = list(range(1, 13))
+                    rinfo["channel"] = list(range(1, 14))
                     rinfo["stores"] = ["wireshark://.", "local://.", "pshark://."]
                     rinfos.append(rinfo)
                 #rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",

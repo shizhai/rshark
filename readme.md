@@ -6,7 +6,7 @@
 * 安装最新版本wireshark,**并创建开始菜单**
 
 ## User部分
-1. 使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu
+使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu
 > * user: 抓包设备的SSH登录用户名
 > * pass: 抓包设备的SSH登录密码
 > * port: 抓包设备的SSH登录port，默认为22，一般无需修改
@@ -16,18 +16,16 @@
 > * chan: 需要抓取的目标信道
 > * intf(s): 抓包设备支持的所有接口列表，使用","隔开，若未传入参数，则默认使用第一个接口
 
-2. 当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改, asrd会自动识别clients， rshark在命令行通过rshark.exe –conf clients
-
-3. rshark.exe当前默认为GUI模式，会弹出窗口允许用户输入sniffer device信息
-
 ### RD模式使用说明
-* 鼠标双击打开rshark.exe
-> 修改clients配置文件，一个clients配置文件仅支持一台设备
+* ashark.exe用于图形界面
+> 鼠标双击打开ashark.exe
 > 
-> 对于多台sniffer 设备，可以拷贝此目录，修改clients，再打开
+> 修改clients配置文件，一个clients配置文件可以添加多台设备
+> 
+> 打开软件后可以通过下拉列表选择目标sniffer设备
 
 * 命令行参数打开 rshark.exe
-> 参考rshark -h传入对应参数，一个CMD窗口仅支持一台sniffer设备
+> 参考rshark --help传入对应参数，一个CMD窗口仅支持一台sniffer设备
 > 
 > 对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开
 
@@ -36,6 +34,18 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v.2.0.1
+
+> add support widget support for user input info
+> 
+> add support iperf client support
+> 
+> ashark for widget, rshark for cli command, asrd for QA web request
+
+v1.6.1
+
+> add netester support for DUT RX performance analize
+
 v1.5.1
 
 > add extract default sniffer devices list from clients for rshark

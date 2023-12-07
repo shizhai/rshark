@@ -1,4 +1,4 @@
-import os
+import copy
 import tkinter as tk
 from tkinter import ttk
 
@@ -100,14 +100,17 @@ class InformationEntryWindow:
     def print_user_input(self):
         found = False
         input = self.wrinfo["value" + self.info_trigger].get()
+        rinfo = {}
         self.rinfo = {}
-        for self.rinfo in self.rinfos:
-            if self.rinfo[self.info_trigger] == input:
+        for rinfo in self.rinfos:
+            if rinfo[self.info_trigger] == input:
                 found = True
                 break
 
         if not found:
-            self.rinfo = self.rinfos[0]
+            self.rinfo = copy.deepcopy(self.rinfos[0])
+        else:
+            self.rinfo = copy.deepcopy(rinfo)
 
         for item in self.rinfo:
             input = self.wrinfo["value" + item].get()
