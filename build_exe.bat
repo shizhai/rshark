@@ -5,11 +5,9 @@ rem call pyinstaller --onedir  asrd.py
 rem call pyinstaller --onefile rshark.py
 
 call pyinstaller --onefile  asrd.py
-call pyinstaller --onedir rshark.py
 call pyinstaller --onedir ashark.py
 
 copy asrd_clients .\dist\clients
-copy rshark_clients .\dist\rshark\clients
 copy rshark_clients .\dist\ashark\clients
 
 mkdir .\dist\ashark\files\iperf

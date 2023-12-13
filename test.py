@@ -1,3 +1,4 @@
+import time
 # import tkinter as tk
 # root = tk.Tk()
 
@@ -12,18 +13,176 @@
 #     b.place(x=10,y=(10+(25*i)))
 # root.mainloop()
 
+# import re
+
+# def is_valid_mac_address(mac_address):
+#     # 正则表达式匹配标准MAC地址格式
+#     pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+#     return bool(pattern.match(mac_address))
+
+# # 示例用法
+# mac_address1 = "00:1a:2b:3c:4d:5e"
+# mac_address2 = "00-1A-2B-3C-4D-5E"
+# mac_address3 = "invalid_mac_address"
+
+# print(is_valid_mac_address(mac_address1))  # 输出 True
+# print(is_valid_mac_address(mac_address2))  # 输出 True
+# print(is_valid_mac_address(mac_address3))  # 输出 False
+
+# import asyncio
+# import time
+
+# async def mainx():
+#     print(f"{time.ctime()} Hello!")
+#     await asyncio.sleep(1.0)
+#     print(f"{time.ctime()} Goodbye!")
+
+# loop = asyncio.get_event_loop() 
+# mainxx = loop.create_task(mainx())
+
+# loop.run_until_complete(mainxx)
+
 import re
+glines = [
+    '325626824713us tsft 1.0 Mb/s 2412 MHz 11b -29dBm signal -98dBm noise antenna 0 BSSID:08:10:7a:88:37:dd DA:ff:ff:ff:ff:ff:ff SA:08:10:7a:88:37:dd Beacon (Netcore_test2481) [1.0* 2.0* 5.5* 11.0* 9.0 18.0 36.0 54.0 Mbit] ESS CH: 1, PRIVACY',
+    '325626827836us tsft 1.0 Mb/s 2412 MHz 11b -41dBm signal -98dBm noise antenna 0 BSSID:c8:bf:4c:a7:cf:14 DA:a0:9f:10:44:3e:a6 SA:c8:bf:4c:a7:cf:14 Probe Response (tprate) [24.0* Mbit] CH: 1, PRIVACY',
+    '325626829309us tsft 1.0 Mb/s 2412 MHz 11b -63dBm signal -98dBm noise antenna 0 CF +QoS BSSID:4c:77:66:c5:c2:c1 SA:48:f1:7f:a9:a1:55 DA:4c:77:66:c5:c2:c1 Data IV:7647 Pad 20 KeyID 0',
+    '325626829626us tsft 1.0 Mb/s 2412 MHz 11b -42dBm signal -98dBm noise antenna 0 RA:48:f1:7f:a9:a1:55 Acknowledgment',
+    '325626832046us tsft 1.0 Mb/s 2412 MHz 11b -49dBm signal -98dBm noise antenna 0 CF +QoS BSSID:4c:77:66:c5:c2:c1 SA:48:f1:7f:a9:a1:55 DA:4c:77:66:c5:c2:c1 Data IV:7648 Pad 20 KeyID 0',
+    '336729100313us tsft 24.0 Mb/s 2412 MHz 11g -58dBm signal -96dBm noise antenna 0 Retry Protected 106us CF +QoS BSSID:06:05:88:34:2c:8f SA:3c:a0:67:41:bf:65 DA:ff:ff:ff:ff:ff:ff Data IV:d923 Pad 20 KeyID 0',
+    '409555445523us tsft 1.0 Mb/s 2412 MHz 11b 5dBm signal -68dBm noise antenna 0 DA:01:00:5e:7f:ff:fa BSSID:78:60:5b:bb:67:d7 SA:78:60:5b:bb:67:d7 Data IV:b45 Pad 20 KeyID 1',
+    '407009562477us tsft 2412 MHz 11n -26dBm signal -97dBm noise antenna 0 65.0 Mb/s MCS 7 20 MHz long GI CF +QoS DA:c2:95:73:f3:b4:56 BSSID:78:60:5b:b9:35:fd SA:00:0e:c6:26:74:0a Data IV:6373 Pad 20 KeyID 0',
+    '407008927922us tsft 2412 MHz 11n -36dBm signal -97dBm noise antenna 0 65.0 Mb/s MCS 6 20 MHz short GI CF +QoS BSSID:78:60:5b:b9:35:fd SA:c2:95:73:f3:b4:56 DA:00:0e:c6:26:74:0a Data IV:a7c8 Pad 20 KeyID 0',
+    '336727797556us tsft bad-fcs 11.0 Mb/s 2412 MHz 11b -47dBm signal -96dBm noise antenna 0 Pwr Mgmt Retry Protected 0us BSSID:cc:20:e8:50:4a:e2 DA:ff:5d:86:c4:62:79 SA:d5:54:e4:ab:2f:be ReAssoc Request IV:f5d281 Pad 36 KeyID 0',
+    '511373197670us tsft 1.0 Mb/s 2412 MHz 11b -30dBm signal -99dBm noise antenna 0 314us BSSID:78:60:5b:b9:35:fd DA:78:60:5b:b9:35:fd SA:c2:95:73:f3:b4:56 DeAuthentication: Deauthenticated',
+    '511373205045us tsft 6.0 Mb/s 2412 MHz 11g -23dBm signal -99dBm noise antenna 0 208us BSSID:78:60:5b:b9:35:fd DA:c2:95:73:f3:b4:56 SA:78:60:5b:b9:35:fd Action: BA DELBA',
+    '325626832046us tsft 1.0 Mb/s 2412 MHz 11b -49dBm signal -98dBm noise antenna 0 CF Request-To-Send BSSID:4c:77:66:c5:c2:c1 SA:48:f1:7f:a9:a1:55 DA:4c:77:66:c5:c2:c1 Data IV:7648 Pad 20 KeyID 0']
 
-def is_valid_mac_address(mac_address):
-    # 正则表达式匹配标准MAC地址格式
-    pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
-    return bool(pattern.match(mac_address))
+def rshark_parse_lines(line):
+    rets = {}
 
-# 示例用法
-mac_address1 = "00:1a:2b:3c:4d:5e"
-mac_address2 = "00-1A-2B-3C-4D-5E"
-mac_address3 = "invalid_mac_address"
+    # rclass = ["data", "mgmt"]
+    rclass_list = []
+    rclass_reg_list = []
+    rclass_ctrl_name = {"Acknowledgment": "ack", "Request-To-Send": "rts", "Clear-To-Send": "cts", "BA": None, "BAR": None, "Power Save-Poll": None, "CF-End": None, "CF-End+CF-Ack": None}
+    rclass_data_name = {"Data": "data"}
+    # rclass_ctrl_list = ["Acknowledgment", "Request-To-Send", "Clear-To-Send", "BA", "BAR", "Power Save-Poll", "CF-End", "CF-End+CF-Ack"]
+    rclass_ctrl_list = list(rclass_ctrl_name.keys())
+    rclass_list = rclass_ctrl_list
+    rclass_ctrl_reg = r"|".join(rclass_ctrl_list)
+    rclass_reg_list.append(rclass_ctrl_reg)
+    # rclass_reg_list = rclass_ctrl_list
 
-print(is_valid_mac_address(mac_address1))  # 输出 True
-print(is_valid_mac_address(mac_address2))  # 输出 True
-print(is_valid_mac_address(mac_address3))  # 输出 False
+    rclass_data_list = list(rclass_data_name.keys())
+    rclass_list = rclass_list + rclass_data_list
+    rclass_data_reg = r"|".join(rclass_data_list)
+    rclass_reg_list.append(rclass_data_reg)
+    # rclass_reg_list = rclass_reg_list + rclass_data_list
+
+    # print(rclass)
+
+    rclass_names = {**rclass_data_name, **rclass_ctrl_name}
+    # print(rclass_names)
+
+    regs = {}
+    regsd = {
+        "ra": [
+            re.compile(r'(DA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) (BSSID|SA).*Data', re.I),
+            re.compile(r'(BSSID):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) SA.*Data', re.I),
+            re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) TA.*Data', re.I),
+        ],
+        "ta": [
+            re.compile(r'(DA|BSSID):.* SA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) .*(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Data', re.I),
+            re.compile(r'(DA):.* BSSID:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) .*(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Data', re.I),
+            re.compile(r'(RA):.* TA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) .*(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Data', re.I),
+        ]}
+
+    regs["Data"] = regsd
+
+    regs["Acknowledgment"] = {
+        "ra":[
+            re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Acknowledgment', re.I),
+        ],
+        "ta":[
+
+        ]
+    }
+
+    # RA:48:f1:7f:a9:a1:55 TA:4c:77:66:c5:c2:c1 Request-To-Send
+    regs["Request-To-Send"] = {
+        "ra":[
+            re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) TA.* Request-To-Send', re.I),
+        ],
+        "ta":[
+            re.compile(r'(RA):.* TA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Request-To-Send', re.I),
+        ]
+    }
+
+    # RA:c2:95:73:6d:df:fe Clear-To-Send
+    regs["Clear-To-Send"] = {
+        "ra":[
+            re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) TA.* Clear-To-Send', re.I),
+        ],
+        "ta":[
+            re.compile(r'(RA):.* TA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Clear-To-Send', re.I),
+        ]
+    }
+
+    regs["rssi"] = re.compile(r'(\S*)dBm signal', re.I)
+    regs["Retry"] = re.compile(r'\sRetry\s', re.I)
+
+    # print(rclass_ctrl_reg)
+    rci = -1
+    # print(rclass_reg_list)
+    # print(rclass_list)
+    for rc in rclass_reg_list:
+        rcc = re.compile(r'\s('+rc+')', re.I)
+        # print(rcc)
+        rcs = rcc.search(line)
+        if not rcs:
+            continue
+
+        item = rcs.groups()[0]
+        # print(rclass_list, item)
+        rci = rclass_list.index(item)
+        break
+
+    # print(rclass_list[rci] if rci >= 0 else "None")
+    if rci >= 0 and rclass_list[rci] in regs:
+        rets["dot11_frame_type"] = rclass_names[rclass_list[rci]]
+        # print(rclass_list[rci], rclass_names[rclass_list[rci]])
+
+        rets["ra"] = "None"
+        rets["ta"] = "None"
+        srssi = regs["rssi"].search(line)
+        rets["rssi"] = srssi.groups()[0] if srssi else 0
+        sretry = regs["Retry"].search(line)
+        rets["retry"] = True if sretry else False
+        regt = regs[rclass_list[rci]]
+        # print(regt)
+
+        for c in regt:
+            for r in regt[c]:
+                ci = r.search(line)
+                if ci:
+                    g = ci.groups()
+                    # print(" ", c, "->", g[1], end="")
+                    rets[c] = g[1]
+                    break
+
+        return rets
+
+for line in glines:
+    # print(rshark_parse_lines(line))
+    # rshark_parse_lines(line)
+    # xr = re.compile('\s(Acknowledgment)', re.IGNORECASE)
+    # print(xr.search(line))
+
+    with open("./t.hdr.txt", "r") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            pret = rshark_parse_lines(line)
+            if pret and pret["retry"]:
+                print(pret)

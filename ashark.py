@@ -1,3 +1,5 @@
+import os
+import argparse
 import copy
 import asyncio
 import threading
@@ -8,17 +10,22 @@ import time
 import rshark
 import subprocess
 import sys
+from tkinter import messagebox
 
 os_platform = sys.platform.lower()
+
+root = tk.Tk()
+
+gwidth = 1780
+gheight = 815
+gwidth_min = 530
+gheight_min = 815
 
 IPERF_PATH=None
 if os_platform.startswith("win"):
     IPERF_PATH="./files/iperf/iperf.exe"
 else:
     IPERF_PATH="iperf"
-
-import tkinter as tk
-from tkinter import ttk
 
 class HoverInfo:
     def __init__(self, widget, text):
@@ -46,18 +53,20 @@ class HoverInfo:
         self.tooltip = None
 
 class SnifferWin:
-    def __init__(self, root, trigger_item, start_rows, rinfos):
+    def __init__(self, root, pframe, trigger_item, trigger_pframe, start_rows, rinfos):
         self.root = root
+        self.pframe = pframe
         self.wrinfo = {}
         self.rinfos = rinfos
         self.rinfo = {}
         self.trigger_item = trigger_item
+        self.tirgger_pframe = trigger_pframe
         self.start_row = start_rows
         self.rows = start_rows
         self.diff_rows = 0
         self.mac_entries = []
         self.pmacs = {}
-        self.root.title("Info to Rshark")
+        # self.root.title("Info to Rshark")
 
         first_info = self.rinfos[0]
         for item in first_info:
@@ -66,6 +75,8 @@ class SnifferWin:
                 self.wrinfo["value" + item] = ttk.Combobox(self.root, width=20)
                 self.wrinfo["value" + item]["value"] = first_info[item]
                 self.wrinfo["value" + item].current(0)
+                if item == self.tirgger_pframe:
+                    self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             elif item == self.trigger_item:
                 self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
                 self.wrinfo["value" + item] = ttk.Combobox(self.root, width=20)
@@ -93,16 +104,16 @@ class SnifferWin:
         self.add_mac_button = tk.Button(self.root, text="Add MAC Group", command=self.add_mac_entry, width=15)
         self.add_mac_button.grid(row=self.rows, column=0, padx=10, pady=5, sticky="we")
         # self.add_mac_button.grid_forget()
-        hide_mac_label1 = tk.Label(self.root, text="Addr1", width=20)
+        hide_mac_label1 = tk.Label(self.root, text="Addr.A", width=20)
         hide_mac_label1.grid(row=self.rows, column=1, sticky="we", padx=10, pady=5)
-        hide_mac_label2 = tk.Label(self.root, text="Addr2", width=20)
+        hide_mac_label2 = tk.Label(self.root, text="Addr.B", width=20)
         hide_mac_label2.grid(row=self.rows, column=2, sticky="we", padx=10, pady=5)
         self.rows = self.rows+ 1
 
         self.root.update()
 
     def trigger_update_info(self, event):
-        info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
+        info_trigger_value = self.wrinfo["value" + self.trigger_].get()
         for rinfo in self.rinfos:
             if rinfo[self.trigger_item] == info_trigger_value:
                 for item in rinfo:
@@ -116,31 +127,47 @@ class SnifferWin:
                         self.wrinfo["value" + item].insert(0, rinfo[item])
                 break
 
+    def trigger_update_pframe_info(self, event):
+        info_trigger_value = self.wrinfo["value" + self.tirgger_pframe].get()
+        if info_trigger_value.startswith("pshark://"):
+            print(info_trigger_value)
+            rshark_toggle_pframe(self.pframe, True)
+        else:
+            rshark_toggle_pframe(self.pframe, False)
+
     def remove_mac_entry(self, event):
         for item in self.mac_entries:
             if item["rmb"] == event.widget:
-                event.widget.grid_forget()
-                item["maca"].grid_forget()
-                item["macb"].grid_forget()
-                # self.rows = self.rows - 1
-                self.mac_entries.remove(item)
-                self.add_mac_button.configure(state="active")
-                return
+                # button_x = item["rmb"].winfo_x()
+                # button_y = item["rmb"].winfo_y()
+                # print(button_x, event.x, item["rmb"].winfo_width())
+                # print(button_y, event.y, item["rmb"].winfo_height())
+                if 0 <= event.x <= item["rmb"].winfo_width() and 0 <= event.y <= item["rmb"].winfo_height():
+                    event.widget.grid_forget()
+                    item["maca"].grid_forget()
+                    item["macb"].grid_forget()
+                    # self.rows = self.rows - 1
+                    self.mac_entries.remove(item)
+                    self.add_mac_button.configure(state="active")
+                    return
 
     def add_mac_entry(self):
         men = self.diff_rows if self.diff_rows < 3 else 3
 
         remove_mac_button = tk.Button(self.root, text="X", width=2)
-        remove_mac_button.bind("<Button-1>", self.remove_mac_entry)
+        # remove_mac_button.bind("<Button-1>", self.remove_mac_entry)
+        remove_mac_button.bind("<ButtonRelease>", self.remove_mac_entry)
         remove_mac_button.grid(row=len(self.mac_entries) + self.rows, column=0, padx=10, pady=5, sticky="e")
 
         mac_entry1 = tk.Entry(self.root, width=20)
         mac_entry1.grid(row=len(self.mac_entries) + self.rows, column=1, padx=10, pady=5,sticky="we")
-        mac_entry1.insert(0, "FF:FF:FF:FF:FF:FF")
+        # mac_entry1.insert(0, "FF:FF:FF:FF:FF:FF")
+        mac_entry1.insert(0, "c2:95:73:53:a5:5e")
         HoverInfo(mac_entry1, "'-' means any mac")
         mac_entry2 = tk.Entry(self.root, width=20)
         mac_entry2.grid(row=len(self.mac_entries) + self.rows, column=2, padx=10, pady=5, sticky="we")
-        mac_entry2.insert(0, "FF:FF:FF:FF:FF:FF")
+        # mac_entry2.insert(0, "FF:FF:FF:FF:FF:FF")
+        mac_entry2.insert(0, "-")
         HoverInfo(mac_entry2, "'-' means any mac")
 
         self.mac_entries.append({"maca": mac_entry1, "macb": mac_entry2, "rmb": remove_mac_button})
@@ -203,61 +230,96 @@ class SnifferWin:
 
 
 class NetworkTestGUI:
-    def __init__(self, root):
+    def __init__(self, mframe, pframe):
         self.running = False
-        self.parse_on_time = False
+        self.parse_on_time = True
         self.event_loop = asyncio.get_event_loop()
         self.client_thread = None
         self.pshark_thread = None
-        self.root = root
+        self.root = mframe
         self.rows = 0
-        self.root.title("Network Performance Test")
+        # self.root.title("Network Performance Test")
         self.data_boxs={}
-        self.data_rows = 0
+
+        # self.pmain_fields = {"data": 0, "mgmt": 1, "ack": 2, "rts": 3, "cts": 4, "ps-poll": 5, "ba": 6, "ba_req": 7}
+        # self.ptitle_fields = {"data": 0, "mgmt": 1, "ack": 2, "rts": 3, "cts": 4}
+        # self.psub_fields = ["src->dst", "rssi", "counts", "retry"]
+        self.ptitle_fields = {"data": 0, "mgmt": 1, "ack": 2, "rts": 3, "cts": 4}
+        self.psub_fields = ["rssi", "cnt", "retry"]
 
         # 停止标志
         self.stop_event = threading.Event()
 
         self.content_label = tk.Label(self.root, text="/ " * 20 + "Iperf Info" + " /" * 20)
-        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=5, pady=5, sticky="we")
+        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=5, pady=0, sticky="we")
         self.rows = self.rows + 1
 
         # IP 输入框和标签
         self.ip_label = tk.Label(self.root, text="IP Address:")
-        self.ip_label.grid(row=self.rows, column=0, padx=5, pady=5, sticky="e")
+        self.ip_label.grid(row=self.rows, column=0, padx=5, pady=0, sticky="e")
         self.ip_entry = tk.Entry(self.root)
-        self.ip_entry.insert(0, "192.168.3.255")
-        self.ip_entry.grid(row=self.rows, column=1, padx=5, pady=5, sticky="w")
+        self.ip_entry.insert(0, "192.168.1.102")
+        self.ip_entry.grid(row=self.rows, column=1, padx=5, pady=0, sticky="w")
         self.rows = self.rows + 1
 
+        # self.data_frame = ScrollableFrame(self.root)
+        # self.data_frame.grid(row = self.rows, column=3, columnspan= len(self.ptitle_fields) * len(self.psub_fields) + 2, padx=0, pady=0, sticky="we")
+        self.data_frame = pframe
+
+        # self.pframe_start_row = 0
+        # self.pframe_start_col = 3
+        self.pframe_start_row = 0
+        self.pframe_start_col = 0
+        self.title_sub_start_column = self.pframe_start_col + 1
+        self.data_rows = self.pframe_start_row
+
+        ptitles = {}
+        ptitles["tmenu"] = tk.StringVar()
+        ptitles["tmenu"].set("src-->dst")
+        ptitles["t_value_menu"] = tk.Entry(self.data_frame, textvariable=ptitles["tmenu"], state="readonly", justify="center")
+        ptitles["t_value_menu"].grid(row=self.pframe_start_row, column=self.pframe_start_col, rowspan=2, padx=1, pady=0, sticky="wens")
+
         if self.parse_on_time:
-            boxs_title = {}
-            boxs_title["title1"] = tk.StringVar()
-            boxs_title["title1"].set("src->dst")
-            boxs_title["title1_value"] = tk.Entry(self.root, textvariable=boxs_title["title1"], state="readonly", justify="center")
-            boxs_title["title1_value"].grid(row=0, column=3, padx=5, pady=5, sticky="we")
+            ptitles = {}
+            for ptitle in self.ptitle_fields:
+                ptitles["t"+ptitle] = tk.StringVar()
+                ptitles["t"+ptitle].set(ptitle)
+                ptitles["t_value"+ptitle] = tk.Entry(self.data_frame,
+                                                     textvariable=ptitles["t"+ptitle],
+                                                     state="readonly",
+                                                     justify="center",
+                                                     width=8)
+                ptitles["t_value"+ptitle].grid(row=self.pframe_start_row,
+                                               column=self.title_sub_start_column + self.ptitle_fields[ptitle] * len(self.psub_fields),
+                                               columnspan=len(self.psub_fields),
+                                               padx=1, pady=0, sticky="we")
 
-            boxs_title["title2"] = tk.StringVar()
-            boxs_title["title2"].set("rssi")
-            boxs_title["title2_value"] = tk.Entry(self.root, textvariable=boxs_title["title2"], state="readonly", justify="center")
-            boxs_title["title2_value"].grid(row=0, column=4, padx=5, pady=5, sticky="ew")
+                # print(len(self.psub_fields))
 
-            boxs_title["title3"] = tk.StringVar()
-            boxs_title["title3"].set("counts")
-            boxs_title["title3_value"] = tk.Entry(self.root, textvariable=boxs_title["title3"], state="readonly", justify="center")
-            boxs_title["title3_value"].grid(row=0, column=5, padx=5, pady=5, sticky="ew")
-
-            boxs_title["title4"] = tk.StringVar()
-            boxs_title["title4"].set("retry")
-            boxs_title["title4_value"] = tk.Entry(self.root, textvariable=boxs_title["title4"], state="readonly", justify="center")
-            boxs_title["title4_value"].grid(row=0, column=6, padx=5, pady=5, sticky="ew")
             self.data_rows = self.data_rows + 1
+
+            psubs = {}
+            for idx in range(0, len(self.ptitle_fields), 1):
+                for psub in self.psub_fields:
+                    column=self.title_sub_start_column + self.psub_fields.index(psub) + idx * len(self.psub_fields)
+                    psubs["t"+psub+str(idx)] = tk.StringVar()
+                    psubs["t"+psub+str(idx)].set(psub)
+                    psubs["t_value"+psub+str(idx)] = tk.Entry(self.data_frame,
+                                                              textvariable=psubs["t"+psub+str(idx)],
+                                                              state="readonly",
+                                                              justify="center",
+                                                              width=8)
+                    psubs["t_value"+psub+str(idx)].grid(row=self.data_rows, column=column, padx=1, pady=0, sticky="we")
+                    # print(idx, psub, column)
+
+            self.data_rows = self.data_rows + 1
+            # print(self.data_rows)
 
         # Port 输入框和标签
         self.port_label = tk.Label(self.root, text="Port:")
         self.port_label.grid(row=self.rows, column=0, padx=5, pady=5, sticky="e")
         self.port_entry = tk.Entry(self.root)
-        self.port_entry.insert(0, "12345")
+        self.port_entry.insert(0, "5001")
         self.port_entry.grid(row=self.rows, column=1, padx=5, pady=5, sticky="w")
         self.rows = self.rows + 1
 
@@ -305,13 +367,15 @@ class NetworkTestGUI:
             rinfo["type"] = item_host["type"]
             rinfo["channel"] = list(range(1, 14))
             # rinfo["stores"] = ["pshark://."]
-            # rinfo["stores"] = ["wireshark://.", "local://./", "pshark://."]
-            rinfo["stores"] = ["wireshark://.", "local://./"]
+            if self.parse_on_time:
+                rinfo["stores"] = ["wireshark://.", "local://./", "pshark://."]
+            else:
+                rinfo["stores"] = ["wireshark://.", "local://./"]
             rinfos.append(rinfo)
 
         # rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan0mon",
         #          "type": ["ubuntu", "openwrt"], "stores":["pshark://."]}
-        self.sw = SnifferWin(self.root, "ip", self.rows, rinfos)
+        self.sw = SnifferWin(self.root, self.data_frame, "ip", "stores", self.rows, rinfos)
         # print("cur rows {}, {}".format(self.rows, self.sw.rows))
         self.rows = self.rows + self.sw.rows
 
@@ -328,6 +392,8 @@ class NetworkTestGUI:
         # 统计
         stats_list = ["tx_rate", "tx_cnts", "running_time"]
         self.stats = self.gen_stats_menu_list(stats_list)
+        self.root.update()
+        self.root.update_idletasks()
 
     def gen_stats_menu_list(self, stats_list):
         stats = {}
@@ -347,59 +413,106 @@ class NetworkTestGUI:
             self.data_boxs[macs+"v"].config(width=entry_width)
 
     def update_data(self, d):
-        for data in d:
-            for mac1 in data:
-                for mac2 in data[mac1]:
-                    macs = (mac1 + mac2).replace(":", "")
-                    if not macs in self.data_boxs:
-                        # print(data[mac1][mac2])
+        # print(d)
+        for mac1 in d:
+            for mac2 in d[mac1]:
+                # print(mac2)
+                # print(mac1, "->", mac2, d[mac1][mac2])
+                macs = (mac1 + mac2).replace(":", "")
+                sdata = d[mac1][mac2]
 
-                        if self.data_rows > 10:
-                            # print("overvlow!!!!!!!!!!!!!!!")
-                            return
+                # self.ptitle_fields = {"data_mgmt": 0, "ack": 1, "rts": 2, "cts": 3}
+                # self.psub_fields = ["rssi", "counts", "retry"]
 
-                        self.data_boxs[macs] = tk.StringVar()
-                        self.data_boxs[macs].trace_add("write", lambda *args: self.on_text_change(macs, *args))
-                        self.data_boxs[macs].set(mac1+"->"+mac2)
-                        self.data_boxs[macs + "v"] = tk.Entry(self.root, textvariable=self.data_boxs[macs], state="readonly")
-                        self.data_boxs[macs + "v"].grid(row=self.data_rows, column=3, padx=5, pady=5, sticky="ew")
+                if not macs in self.data_boxs:
+                    # print(data[mac1][mac2])
+                    if self.data_rows > 50:
+                        continue
+                    self.data_boxs[macs] = tk.StringVar()
+                    self.data_boxs[macs].trace_add("write", lambda *args: self.on_text_change(macs, *args))
+                    self.data_boxs[macs].set(mac1+"->"+mac2)
+                    self.data_boxs[macs + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[macs], state="readonly", width=32)
+                    self.data_boxs[macs + "v"].grid(row=self.data_rows, column=self.pframe_start_col, padx=1, pady=5, sticky="ew")
+                    self.data_boxs[macs + "r"] = self.data_rows
+                    self.data_rows = self.data_rows + 1
 
-                        rssiv = macs + "rssi"
-                        self.data_boxs[rssiv] = tk.StringVar()
-                        self.data_boxs[rssiv].set(round(int(data[mac1][mac2]["rssi"]) / int(data[mac1][mac2]["rssi_cnt"]), 2))
-                        self.data_boxs[rssiv + "v"] = tk.Entry(self.root, textvariable=self.data_boxs[rssiv], state="readonly")
-                        self.data_boxs[rssiv + "v"].grid(row=self.data_rows, column=4, padx=5, pady=5, sticky="ew")
+                # print(sdata)
+                # for pkt_filed in sdata:
+                for pkt_filed in self.ptitle_fields:
+                    # print(pkt_filed)
+                    rssiv = macs + "rssi" + pkt_filed
+                    rssiv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("rssi")
+                    # print("rssiv colum: ", rssiv_column)
 
-                        cntv = macs + "cnts"
-                        self.data_boxs[cntv] = tk.StringVar()
-                        self.data_boxs[cntv].set(int(data[mac1][mac2]["cnt"]))
-                        self.data_boxs[cntv + "v"] = tk.Entry(self.root, textvariable=self.data_boxs[cntv], state="readonly")
-                        self.data_boxs[cntv + "v"].grid(row=self.data_rows, column=5, padx=5, pady=5, sticky="ew")
-
-                        retryv = macs + "retry"
-                        self.data_boxs[retryv] = tk.StringVar()
-                        self.data_boxs[retryv].set(int(data[mac1][mac2]["retry"]))
-                        self.data_boxs[retryv + "v"] = tk.Entry(self.root, textvariable=self.data_boxs[retryv], state="readonly")
-                        self.data_boxs[retryv + "v"].grid(row=self.data_rows, column=6, padx=5, pady=5, sticky="ew")
-
-                        self.data_rows = self.data_rows + 1
+                    if rssiv in self.data_boxs:
+                        if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
+                            self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
                     else:
-                        self.data_boxs[macs].set(mac1+"->"+mac2)
-                        self.data_boxs[macs + "rssi"].set(round(int(data[mac1][mac2]["rssi"]) / int(data[mac1][mac2]["rssi_cnt"]), 2))
-                        self.data_boxs[macs + "cnts"].set(data[mac1][mac2]["cnt"])
-                        self.data_boxs[macs + "retry"].set(data[mac1][mac2]["retry"])
+                        self.data_boxs[rssiv] = tk.StringVar()
+                        # self.data_boxs[rssiv].set(round(int(data[mac1][mac2]["rssi"]) / int(data[mac1][mac2]["rssi_cnt"]), 2))
+                        if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
+                            self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
+                        else:
+                            self.data_boxs[rssiv].set("")
+                        self.data_boxs[rssiv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[rssiv], state="readonly", width=8, justify="center")
+                        self.data_boxs[rssiv + "v"].grid(row=self.data_boxs[macs + "r"], column=rssiv_column, padx=1, pady=5, sticky="ew")
+
+
+                    cntv = macs + "cnts" + pkt_filed
+                    cntv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("cnt")
+                    # print("cntv_column: ", cntv_column)
+
+                    if cntv in self.data_boxs:
+                        if pkt_filed in sdata: 
+                            self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
+                    else:
+                        self.data_boxs[cntv] = tk.StringVar()
+                        if pkt_filed in sdata: 
+                            self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
+                        else:
+                            self.data_boxs[cntv].set("")
+
+                        self.data_boxs[cntv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[cntv], state="readonly", width=8, justify="center")
+                        self.data_boxs[cntv + "v"].grid(row=self.data_boxs[macs + "r"],
+                                                        column=cntv_column, padx=1, pady=5, sticky="ew")
+
+                    retryv = macs + "retry" + pkt_filed
+                    retryv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("retry")
+                    # print("retryv_column: ", retryv_column)
+
+                    if retryv in self.data_boxs:
+                        if pkt_filed in sdata: 
+                            self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
+                    else:
+                        self.data_boxs[retryv] = tk.StringVar()
+                        if pkt_filed in sdata: 
+                            self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
+                        else:
+                            self.data_boxs[retryv].set("")
+                        self.data_boxs[retryv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[retryv], state="readonly", width=8, justify="center")
+                        self.data_boxs[retryv + "v"].grid(row=self.data_boxs[macs + "r"],
+                                                            column=retryv_column, padx=1, pady=5, sticky="ew")
+
 
     def start_run(self):
         self.start_client()
 
     def start_client(self):
+        if self.running:
+            print("Already is running and please stop first!")
+            messagebox.showinfo("Information", "Already is running and please stop first!")
+            return
+        
+        self.client_button.configure(state="disabled")
+        self.stop_button.configure(state="active")
+
         for item in self.data_boxs:
             if item + "v" in self.data_boxs:
                 self.data_boxs[item + "v"].grid_forget()
 
         del self.data_boxs
         self.data_boxs = {}
-        self.data_rows = 1
+        self.data_rows = 2
 
         self.stop_event.clear()
         if self.check_box_enable_iperf.get() == 1:
@@ -426,12 +539,13 @@ class NetworkTestGUI:
                                     None,
                                     10,
                                     msgbox_info["pmacs"])
-        sub_args = {"cb": self.update_data, "eloop": self.event_loop}
+        sub_args = {"cb": self.update_data, "eloop": self.event_loop, "stores": msgbox_info["stores"]}
         self.sharkd.rshark_set_pshark_cb(sub_args)
         self.sharkd.rshark_sniffer()
 
     def run_client(self):
-        while not hasattr(self, "sharkd") or self.sharkd.rshark_get_tcpdump_pid() == 0:
+        # sniffer has to be started first
+        while not hasattr(self, "sharkd") or not self.sharkd.input_running:
             time.sleep(0.1)
 
         print("Ready to send pkts...")
@@ -446,9 +560,14 @@ class NetworkTestGUI:
     def stop(self):
         if not self.running:
             return
+
         self.stop_event.set()
+        # self.sharkd.rshark_store_pyshark_async_parse()
         self.sharkd.rshark_force_exit()
         self.running = False
+
+        self.client_button.configure(state="active")
+        self.stop_button.configure(state="disabled")
 
     def __del__(self):
         self.running = False
@@ -532,9 +651,104 @@ class NetTestClient:
             print(f"Error: {e}")
         # messagebox.showerror("Connection Error", "Failed to connect to the server. Make sure the server is running.")
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    # root.geometry(str(root.winfo_width()) + "x800")
-    root.maxsize(height=800) 
-    app = NetworkTestGUI(root)
+def rshark_toggle_pframe(pframe, pshow=False):
+    parent = pframe.winfo_parent()
+    parent = root.nametowidget(parent).winfo_parent()
+    parent = root.nametowidget(parent)
+    if pshow:
+        root.maxsize(width=gwidth, height=gheight + 10) 
+        root.minsize(width=gwidth, height=gheight + 10)
+        parent.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
+        # root.geometry(str(gwidth)+"x"+str(gheight))
+        # print("this is set show->", parent)
+
+        # root.maxsize(width=gwidth, height=gheight + 10) 
+        # root.minsize(width=gwidth, height=gheight + 10)
+    else:
+        # print("this is set disshow->", parent)
+        root.maxsize(width=gwidth_min, height=gheight_min + 10) 
+        root.minsize(width=gwidth_min, height=gheight_min + 10)
+        parent.grid_forget()
+    
+    root.update()
+    pframe.update()
+
+def rshark_main():
+    root.maxsize(width=gwidth_min, height=gheight_min + 10) 
+    root.minsize(width=gwidth_min, height=gheight_min + 10)
+
+    mframe = tk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
+    mframe.grid(row=0, column=0, padx=5, pady=0, sticky="wen")
+
+    pframe = tk.Frame(master=root, borderwidth=1, relief="solid")
+    pframe.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
+    pframe.grid_forget()
+    # rshark_toggle_pframe(pframe, True)
+    # rshark_toggle_pframe(pframe, False)
+
+    # 接下来为数据分析窗口(pframe)创建画布，以方便实现滚动条
+    # 画布上面创建内侧窗口(interior frame)，并将内侧窗口附着在画布上新创建的窗体(create_window)上
+    # 最后将滚动条通过画布的configure方法添加至画布
+    pframe_canvas = tk.Canvas(pframe, borderwidth=0, highlightthickness=0, width=gwidth - 570, height=gheight + 6)
+    pframe_canvas.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
+
+    pframe_canvas_scrollbar = tk.Scrollbar(pframe, orient="vertical", command=pframe_canvas.yview)
+    pframe_canvas_scrollbar.grid(row=0, column=2, sticky="ns")
+
+    pframe_canvas.configure(yscrollcommand=pframe_canvas_scrollbar.set)
+
+    pframe_interior_frame = tk.Frame(pframe_canvas)
+    pframe_canvas.create_window((0, 0), window=pframe_interior_frame, anchor="nw")
+
+    def update_scroll_region(event):
+        pframe_canvas.configure(scrollregion=pframe_canvas.bbox("all"))
+
+    def _on_mousewheel(event):
+        pframe_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    pframe_interior_frame.bind("<Configure>", update_scroll_region)
+    pframe_canvas.bind("<Configure>", update_scroll_region)
+    pframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+    app = NetworkTestGUI(mframe, pframe_interior_frame)
+
+    # root.geometry(str(width)+"x"+str(gheight))
+
     root.mainloop()
+
+if __name__ == "__main__":
+    #https://docs.python.org/zh-cn/3/library/argparse.html
+    parse = argparse.ArgumentParser(description="Start sniffer with cli, target(openwrt) configure file can be store to openwrt/wireless or use inner static file")
+    parse.add_argument("--conf", help="path to the config file", required=False, type=str)
+
+    parse.add_argument("-u", "--user", help="remote sniffer host user name to login", required=False, type=str)
+    parse.add_argument("-p", "--password", help="remote sniffer host password to login", required=False, type=str)
+    parse.add_argument("-i", "--interface", help="wireless interface of remote sniffer host to use", required=False, type=str)
+    parse.add_argument("-c", "--channel", help="wireless channel of remote sniffer host to use", required=False, type=int)
+    parse.add_argument("--ip", help="remote sniffer host ip address", required=False, type=str)
+    parse.add_argument("--port", help="remote sniffer host ssh port", required=False, default="22", type=str)
+    parse.add_argument("--type", help="the type of remote target host, default: openwrt", choices=["openwrt", "ubuntu"], required=False, type=str)
+    parse.add_argument("--dst", help="where to store the sniffer log, show start with: local://yourpath OR wireshark://.", default="wireshark://.", required=False, type=str)
+    parse.add_argument("--macs", help="mac list with \',\' splited to filter the target", required=False, type=str)
+    parse.add_argument("--timeout", help="time to wait for the remote host reponse(10s)", required=False, default=10, type=int)
+
+    args = parse.parse_args()
+
+    if (args.ip and args.type and args.user and args.password and args.dst and args.interface and args.channel):
+        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, None)
+        shark.rshark_sniffer()
+    elif args.conf and os.path.exists(args.conf):
+        rshark.rshark_from_conf(args.conf, None)
+        for item in rshark.conf_hosts:
+            if item["usetunnel"]:
+                args.ip = item["ip"]
+                break
+
+        if not args.ip:
+            print("ERROR! remote ip address required and not configure file found!")
+        else:
+            print("WARNING! remote ip address required, use first one {}!".format(args.ip))
+        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, None)
+        shark.rshark_sniffer()
+    else:
+        rshark_main()

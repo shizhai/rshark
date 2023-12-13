@@ -1078,7 +1078,7 @@ body .markdown-body
 .highlight .gc{color:#999;background-color:#EAF2F5}
 </style><title>readme</title></head><body><article class="markdown-body"><div class="toc">
 <ul>
-<li><a href="#rshark-asrd-for-windows">rshark &amp; asrd for Windows</a><ul>
+<li><a href="#ashark-asrd-for-windows">ashark &amp; asrd for Windows</a><ul>
 <li><a href="#it">IT部分</a><ul>
 <li><a href="#windows">windows系统环境</a></li>
 </ul>
@@ -1093,7 +1093,7 @@ body .markdown-body
 </li>
 </ul>
 </div>
-<h1 id="rshark-asrd-for-windows">rshark &amp; asrd for Windows<a class="headerlink" href="#rshark-asrd-for-windows" title="Permanent link"></a></h1>
+<h1 id="ashark-asrd-for-windows">ashark &amp; asrd for Windows<a class="headerlink" href="#ashark-asrd-for-windows" title="Permanent link"></a></h1>
 <h2 id="it">IT部分<a class="headerlink" href="#it" title="Permanent link"></a></h2>
 <h3 id="windows">windows系统环境<a class="headerlink" href="#windows" title="Permanent link"></a></h3>
 <ul>
@@ -1115,19 +1115,11 @@ body .markdown-body
 </blockquote>
 <h3 id="rd">RD模式使用说明<a class="headerlink" href="#rd" title="Permanent link"></a></h3>
 <ul>
-<li>
-<p>ashark.exe用于图形界面</p>
-<blockquote>
+<li>ashark.exe用于图形界面与命令行参数<blockquote>
 <p>鼠标双击打开ashark.exe</p>
 <p>修改clients配置文件，一个clients配置文件可以添加多台设备</p>
 <p>打开软件后可以通过下拉列表选择目标sniffer设备</p>
-</blockquote>
-</li>
-<li>
-<p>命令行参数打开 rshark.exe</p>
-<blockquote>
-<p>参考rshark &ndash;help传入对应参数，一个CMD窗口仅支持一台sniffer设备</p>
-<p>对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开</p>
+<p>参考ashark &ndash;help传入对应参数，一个CMD窗口仅支持一台sniffer设备</p>
 </blockquote>
 </li>
 </ul>
@@ -1137,7 +1129,17 @@ body .markdown-body
 <li>修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可</li>
 </ul>
 <h2 id="_1">版本历史<a class="headerlink" href="#_1" title="Permanent link"></a></h2>
-<p>v.2.0.1</p>
+<p>v3.1.1</p>
+<blockquote>
+<p>support windows GUI</p>
+<p>merge rshark with ashark to ashark to support cmd line and GUI</p>
+<p>fix parse online fail when too many pkt arrived</p>
+</blockquote>
+<p>v2.1.1</p>
+<blockquote>
+<p>add pshark support to parse rx performance</p>
+</blockquote>
+<p>v2.0.1</p>
 <blockquote>
 <p>add support widget support for user input info</p>
 <p>add support iperf client support</p>

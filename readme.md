@@ -1,6 +1,6 @@
 [TOC]
 
-# rshark & asrd for Windows
+# ashark & asrd for Windows
 ## IT部分
 ### windows系统环境
 * 安装最新版本wireshark,**并创建开始菜单**
@@ -17,24 +17,33 @@
 > * intf(s): 抓包设备支持的所有接口列表，使用","隔开，若未传入参数，则默认使用第一个接口
 
 ### RD模式使用说明
-* ashark.exe用于图形界面
+* ashark.exe用于图形界面与命令行参数
 > 鼠标双击打开ashark.exe
 > 
 > 修改clients配置文件，一个clients配置文件可以添加多台设备
 > 
 > 打开软件后可以通过下拉列表选择目标sniffer设备
-
-* 命令行参数打开 rshark.exe
-> 参考rshark --help传入对应参数，一个CMD窗口仅支持一台sniffer设备
 > 
-> 对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开
+> 参考ashark --help传入对应参数，一个CMD窗口仅支持一台sniffer设备
 
 ### SAT使用说明
 * 双击asrd.exe
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
-v.2.0.1
+v3.1.1
+
+> support windows GUI
+> 
+> merge rshark with ashark to ashark to support cmd line and GUI
+> 
+> fix parse online fail when too many pkt arrived
+
+v2.1.1
+
+> add pshark support to parse rx performance
+
+v2.0.1
 
 > add support widget support for user input info
 > 
