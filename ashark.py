@@ -1,5 +1,7 @@
 import os
 import argparse
+import random
+from math import ceil
 import copy
 import asyncio
 import threading
@@ -11,6 +13,10 @@ import rshark
 import subprocess
 import sys
 from tkinter import messagebox
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.animation import FuncAnimation
 
 os_platform = sys.platform.lower()
 
@@ -113,7 +119,7 @@ class SnifferWin:
         self.root.update()
 
     def trigger_update_info(self, event):
-        info_trigger_value = self.wrinfo["value" + self.trigger_].get()
+        info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
         for rinfo in self.rinfos:
             if rinfo[self.trigger_item] == info_trigger_value:
                 for item in rinfo:
@@ -230,7 +236,7 @@ class SnifferWin:
 
 
 class NetworkTestGUI:
-    def __init__(self, mframe, pframe):
+    def __init__(self, mframe, pframe, pfframe):
         self.running = False
         self.parse_on_time = True
         self.event_loop = asyncio.get_event_loop()
@@ -265,6 +271,12 @@ class NetworkTestGUI:
         # self.data_frame = ScrollableFrame(self.root)
         # self.data_frame.grid(row = self.rows, column=3, columnspan= len(self.ptitle_fields) * len(self.psub_fields) + 2, padx=0, pady=0, sticky="we")
         self.data_frame = pframe
+        self.pfframe = pfframe
+        self.pt_pre = 0
+        self.pt_list = []
+        self.pr_list = {}
+        self.prc_list = []
+        self.plot_color_handle("RESET")
 
         # self.pframe_start_row = 0
         # self.pframe_start_col = 3
@@ -414,6 +426,16 @@ class NetworkTestGUI:
 
     def update_data(self, d):
         # print(d)
+        # update xlabel(time)
+        if self.pt_pre == 0:
+            self.pt_list.append(0)
+            self.pt_pre = time.time()
+        else:
+            cur_diff = time.time() - self.pt_pre
+            # self.pt_list.append(round(cur_diff, 2))
+            self.pt_list.append(ceil(cur_diff))
+            # self.pt_pre = time.time()
+
         for mac1 in d:
             for mac2 in d[mac1]:
                 # print(mac2)
@@ -426,7 +448,7 @@ class NetworkTestGUI:
 
                 if not macs in self.data_boxs:
                     # print(data[mac1][mac2])
-                    if self.data_rows > 50:
+                    if self.data_rows > 30:
                         continue
                     self.data_boxs[macs] = tk.StringVar()
                     self.data_boxs[macs].trace_add("write", lambda *args: self.on_text_change(macs, *args))
@@ -435,6 +457,8 @@ class NetworkTestGUI:
                     self.data_boxs[macs + "v"].grid(row=self.data_rows, column=self.pframe_start_col, padx=1, pady=5, sticky="ew")
                     self.data_boxs[macs + "r"] = self.data_rows
                     self.data_rows = self.data_rows + 1
+
+                self.push_retry_plot_data(mac1, mac2, sdata)
 
                 # print(sdata)
                 # for pkt_filed in sdata:
@@ -492,7 +516,78 @@ class NetworkTestGUI:
                         self.data_boxs[retryv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[retryv], state="readonly", width=8, justify="center")
                         self.data_boxs[retryv + "v"].grid(row=self.data_boxs[macs + "r"],
                                                             column=retryv_column, padx=1, pady=5, sticky="ew")
+        
+        self.update_plot()
 
+    def plot_color_handle(self, method):
+        if method == "RESET":
+            self.prc_list = [
+                (1, 0.5, 0, 1),             # 橙色
+                (1, 1, 0, 1),               # 黄色
+                (0.5, 0, 0.5, 1),           # 紫色
+                (1, 0, 1, 1),               # 品红
+                (0, 1, 1, 1),               # 青色
+                (0.647, 0.165, 0.165, 1),   # 棕色
+                (0, 0, 0.7, 1)              # 深蓝色
+                ]
+        elif method == "GET":
+            return self.prc_list.pop() if len(self.prc_list) > 0 else None
+        else:
+            return len(self.prc_list)
+
+    def update_plot(self):
+        # print(self.pr_list)
+        self.pfframe["plot"].clear()
+        for item in self.pr_list:
+            # print(item, self.pr_list[item]["pdata"])
+            # 清除当前图形并绘制新数据
+            self.pfframe["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], ls='-', marker='.', mec='b', mfc='w', label=item)
+            self.pfframe["plot"].set_title('Retry Counts Tendency Chart')
+            self.pfframe["plot"].set_xlabel('time(s)')
+            self.pfframe["plot"].set_ylabel('cnts(pkt)')
+            self.pfframe["plot"].legend()
+
+        # 在 Canvas 上重新绘制
+        self.pfframe["canvas"].draw()
+        self.pfframe["root"].update()
+
+    def push_retry_plot_data(self, mac1, mac2, data_info):
+        '''
+        plot data retry except mgmt, ctrol frame etc.
+        '''
+        # print(mac1, mac2)
+        if not "data" in data_info:
+            return
+
+        if len(self.pt_list) == 0:
+            return
+
+        d = data_info["data"]
+
+        if mac1.lower() == "none" or mac2.lower() == "none":
+            return
+
+        target = mac1.replace(":","")+"->"+mac2.replace(":","")
+        # print(time.time(), target, data_info)
+
+        # if not "plot" in self.pfframe:
+
+        # print(target, self.pt_list, self.pr_list[target]["pdata"] if target in self.pr_list else "NEW")
+
+        if not target in self.pr_list:
+            if self.plot_color_handle(None) == 0:
+                return
+
+            pdata =  [0] * (len(self.pt_list) - 1)
+            self.pr_list[target] = {}
+            self.pr_list[target]["pdata"] = pdata
+            self.pr_list[target]["color"] = self.plot_color_handle("GET")
+
+        # print(target, self.pt_list, self.pr_list[target]["pdata"])
+
+        # print(self.pt_list, self.pr_list)
+        self.pr_list[target]["pdata"].append(d["retry"])
+        # print(target, self.pt_list, self.pr_list[target]["pdata"])
 
     def start_run(self):
         self.start_client()
@@ -568,6 +663,13 @@ class NetworkTestGUI:
 
         self.client_button.configure(state="active")
         self.stop_button.configure(state="disabled")
+
+        self.pt_pre = 0
+        self.pt_list = []
+        self.pr_list = {}
+        self.prc_list = []
+        self.plot_color_handle("RESET")
+
 
     def __del__(self):
         self.running = False
@@ -674,43 +776,81 @@ def rshark_toggle_pframe(pframe, pshow=False):
     pframe.update()
 
 def rshark_main():
+    right_left_size = gwidth - 570
+
     root.maxsize(width=gwidth_min, height=gheight_min + 10) 
     root.minsize(width=gwidth_min, height=gheight_min + 10)
 
     mframe = tk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
-    mframe.grid(row=0, column=0, padx=5, pady=0, sticky="wen")
+    mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
 
-    pframe = tk.Frame(master=root, borderwidth=1, relief="solid")
-    pframe.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
-    pframe.grid_forget()
-    # rshark_toggle_pframe(pframe, True)
-    # rshark_toggle_pframe(pframe, False)
+    # ppframe = tk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
+    # ppframe.grid(row=0, column=1, rowspan=2, padx=5, pady=0, sticky="wen")
+    # # ppframe.grid_forget()
+
+    # parse data frame
+    # pdframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
+    pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
+    pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+
+    # parse figure frame
+    # pfframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
+    pfframe = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    pfframe.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+
+    pfframe.update()
+    # print(pfframe.winfo_width(), pfframe.winfo_height())
+    # pfframe_fig = Figure(figsize=(self.pfframe["pfframe"].winfo_width()/100, self.pfframe["pfframe"].winfo_height()/100), dpi=100)
+    pfframe_fig = Figure(figsize=(pfframe.winfo_width()/100, pfframe.winfo_height()/100), dpi=100)
+    # pfframe_fig = Figure(figsize=(2, 1), dpi=100)
+    # pfframe_ax = pfframe_fig.add_subplot(111)
+    pfframe_ax = pfframe_fig.add_axes([0.05, 0.1, 0.9, 0.8])
+    
+    # 将 matplotlib 图形嵌入到 tkinter 窗口中
+    pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=pfframe)   
+    pfframe_canvas.draw()
+    # pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    pfframe_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+    # pfframe["plot"] = pfframe_ax
+    # pfframe_ax.plot([0, 1, 2, 3], [1, 2, 3, 4], label="test")
+
+    # plt.xlabel("time(s)")
+    # plt.ylabel("cnts(pkt)")
 
     # 接下来为数据分析窗口(pframe)创建画布，以方便实现滚动条
     # 画布上面创建内侧窗口(interior frame)，并将内侧窗口附着在画布上新创建的窗体(create_window)上
     # 最后将滚动条通过画布的configure方法添加至画布
-    pframe_canvas = tk.Canvas(pframe, borderwidth=0, highlightthickness=0, width=gwidth - 570, height=gheight + 6)
-    pframe_canvas.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
+    pdframe_canvas = tk.Canvas(pdframe, borderwidth=0, highlightthickness=0, width=right_left_size, height=(gheight + 6) / 2)
+    pdframe_canvas.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
 
-    pframe_canvas_scrollbar = tk.Scrollbar(pframe, orient="vertical", command=pframe_canvas.yview)
-    pframe_canvas_scrollbar.grid(row=0, column=2, sticky="ns")
+    pdframe_canvas_scrollbar = tk.Scrollbar(pdframe, orient="vertical", command=pdframe_canvas.yview)
+    pdframe_canvas_scrollbar.grid(row=0, column=2, sticky="ns")
 
-    pframe_canvas.configure(yscrollcommand=pframe_canvas_scrollbar.set)
+    pdframe_canvas.configure(yscrollcommand=pdframe_canvas_scrollbar.set)
 
-    pframe_interior_frame = tk.Frame(pframe_canvas)
-    pframe_canvas.create_window((0, 0), window=pframe_interior_frame, anchor="nw")
+    pdframe_interior_frame = tk.Frame(pdframe_canvas)
+    pdframe_canvas.create_window((0, 0), window=pdframe_interior_frame, anchor="nw")
 
     def update_scroll_region(event):
-        pframe_canvas.configure(scrollregion=pframe_canvas.bbox("all"))
+        pdframe_canvas.configure(scrollregion=pdframe_canvas.bbox("all"))
 
     def _on_mousewheel(event):
-        pframe_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        pdframe_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-    pframe_interior_frame.bind("<Configure>", update_scroll_region)
-    pframe_canvas.bind("<Configure>", update_scroll_region)
-    pframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    pdframe_interior_frame.bind("<Configure>", update_scroll_region)
+    pdframe_canvas.bind("<Configure>", update_scroll_region)
+    pdframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-    app = NetworkTestGUI(mframe, pframe_interior_frame)
+    # pfframe_info = {"pfframe": pfframe, "plot": pfframe_ax}
+
+    pfframe_info = {"root":root, "pfframe": pfframe, "plot": pfframe_ax, "canvas": pfframe_canvas}
+
+    ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pfframe_info)
+
+    # ntg.animation = FuncAnimation(pfframe_fig, ntg.update_plot, frames=100, interval=100)
+    ntg.update_plot()
 
     # root.geometry(str(width)+"x"+str(gheight))
 

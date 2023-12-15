@@ -31,6 +31,12 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.2.2
+
+> add support to retry counts tendancy chart
+> 
+> add restart feature for asrd when firewall of windows kill us
+
 v3.1.1
 
 > support windows GUI

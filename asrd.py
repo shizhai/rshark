@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import logging
+import sys
 import subprocess
 import threading
 import json
@@ -63,6 +63,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
         # 3. 发送响应内容（此处流不需要关闭）
         self.wfile.write(json.dumps(data["data"]).encode("utf-8"))
+        # raise ConnectionAbortedError
         #self.wfile.write(json.dumps(data["data"], sort_keys=True, indent=4, separators=(',', ': ')).encode("utf-8"))
 
     def do_GET(self):
@@ -122,22 +123,38 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 class httpThread(threading.Thread):
     def __init__(self, name, server_address):
         super(httpThread, self).__init__()
-        # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
-        self.httpd = http.server.HTTPServer(server_address, RequestHandlerImpl)
+        self.server_address = server_address
 
     def run(self):
-        # 循环等待客户端请求
-        self.httpd.serve_forever()
+        while True:
+            try:
+                # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
+                self.httpd = http.server.HTTPServer(self.server_address, RequestHandlerImpl)
+                # 循环等待客户端请求
+                self.httpd.serve_forever()
+            except Exception as e:
+                print("Http Server Exception{}".format(e))
+            finally:
+                if self.httpd:
+                    self.httpd.server_close()
 
 class httpFThread(threading.Thread):
     def __init__(self, name, server_address, dir):
         super(httpFThread, self).__init__()
-        # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
-        self.httpfd = http.server.HTTPServer(server_address, partial(http.server.SimpleHTTPRequestHandler, directory=dir))
+        self.server_address = server_address
 
     def run(self):
-        # 循环等待客户端请求
-        self.httpfd.serve_forever()
+        while True:
+            try:
+                # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
+                self.httpfd = http.server.HTTPServer(self.server_address, partial(http.server.SimpleHTTPRequestHandler, directory=dir))
+                # 循环等待客户端请求
+                self.httpfd.serve_forever()
+            except Exception as e:
+                print("Http File Server Exception{}".format(e))
+            finally:
+                if self.httpfd:
+                    self.httpfd.server_close()
 
 class SrvThread(threading.Thread):
     def __init__(self, name, args):
@@ -204,7 +221,11 @@ class Asrd():
         del r
         running["id"].start()
 
-        file = running["obj"].start_eventq.get(block=True, timeout=60)
+        try:
+            file = running["obj"].start_eventq.get(block=True, timeout=40)
+        except:
+            asrd_http_response("error", "Target sniffer device not response!")
+            return
 
         r = {}
         r["name"] = running["name"]
@@ -273,6 +294,11 @@ class Asrd():
             args["dst"] = lhost["dst"] if not "dst" in args else args["dst"]
             args["port"] = lhost["port"] if not "port" in args else args["port"]
 
+        # filter mac splited with ,
+        if "macs" in args:
+            smacs = args["macs"]
+            args["macs"] = smacs.replace(" ", "").split(",")
+
         self.asrd_start_sniffer_thread(args)
 
     def asrd_stop_sniffer(self, args):
@@ -318,11 +344,9 @@ class Asrd():
                 continue
             print(args)
             if "cmd" in args and args["cmd"] in self.queues:
-                print(args)
                 self.queues[args["cmd"]](args)
                 pass
             else:
-                #print(args)
                 asrd_http_response("error", "CMD {} Not found!".format(args["cmd"] if "cmd" in args else "Null"))
 
 if __name__ == "__main__":
@@ -342,14 +366,17 @@ if __name__ == "__main__":
     msg_queue["h2s"] = queue.Queue()
     msg_queue["s2h"] = queue.Queue()
 
-    A = Asrd(args.conf)
-    A.httpd.start()
-    A.httpfd.start()
+    try:
+        A = Asrd(args.conf)
+        A.httpd.start()
+        A.httpfd.start()
 
-    A.asrd_run()
+        A.asrd_run()
 
-    for r in A.threads:
-        r["id"].join()
+        for r in A.threads:
+            r["id"].join()
 
-    A.httpd.join()
-    A.httpfd.join()
+        A.httpd.join()
+        A.httpfd.join()
+    except KeyboardInterrupt:
+        sys.exit()

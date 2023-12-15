@@ -507,12 +507,12 @@ class Rshark():
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
 
-        #print("test1")
+        # print("test1")
         self.ssh.exec_command("systemctl stop avahi-daemon.service")
         self.ssh.exec_command("systemctl stop avahi-daemon.socket")
         self.ssh.exec_command("service avahi-daemon stop")
         self.ssh.exec_command("for dev in `ifconfig | grep '^wl' | awk '{print $1}' | tr -d ':'`;do sudo airmon-ng check kill; airmon-ng start $dev;done")
-        #print("test2")
+        # print("test2")
         _, stdout, _ = self.ssh.exec_command("ifconfig | grep \'^" + str(self.intf) + "\' | awk \'{print $1}\' | tr -d ':'")
 
         response = []
@@ -522,6 +522,7 @@ class Rshark():
             if rsp:
                 response.append(rsp)
                 break
+        # print("test2")
 
         if self.intf not in response:
             print("ERROR, Interface {} pull up failed".format(self.intf))
@@ -532,6 +533,7 @@ class Rshark():
             self.ssh.exec_command("ifconfig " + self.intf + " up")
             self.ssh.exec_command("iw dev " + self.intf + " set channel " + str(self.chan))
 
+        # print("test3")
         pass
 
     def rshark_update_key(self):
@@ -1047,59 +1049,50 @@ class Rshark():
         #     pargs.append("port")
         #     pargs.append(str(self.rport))
 
-        # print(pargs)
         print("Starting sniffer@channel[{}].....".format(self.chan))
 
-        #print(pargs)
-        proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)
+        try:
+            proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)
 
-        # self.new_eloop = asyncio.get_event_loop()
-        # self.new_eloop = asyncio.new_event_loop()
-        # my_eloop_pipe = self.new_eloop.create_task(self.rshark_pipe_tcpdump(pargs=pargs))
-        # proc_tcpdump = self.new_eloop.run_until_complete(my_eloop_pipe)
-        # print(dir(proc_tcpdump))
-        # print(proc_tcpdump.stdout)
-        # print(type(proc_tcpdump.stdout))
-        
-        self.wait_subprocess.append(proc_tcpdump)
+            # self.new_eloop = asyncio.get_event_loop()
+            # self.new_eloop = asyncio.new_event_loop()
+            # my_eloop_pipe = self.new_eloop.create_task(self.rshark_pipe_tcpdump(pargs=pargs))
+            # proc_tcpdump = self.new_eloop.run_until_complete(my_eloop_pipe)
+            # print(dir(proc_tcpdump))
+            # print(proc_tcpdump.stdout)
+            # print(type(proc_tcpdump.stdout))
+            
+            self.wait_subprocess.append(proc_tcpdump)
 
-        # remote_pid_cmd = self.rtypes[self.rtype]["ps"].format(self.intf)
-        # #print("remote pid cmd: ", remote_pid_cmd)
-        # while True:
-        #     stdin, stdout, stderr = self.ssh.exec_command(remote_pid_cmd)
-        #     rsp = stdout.readline().strip("\n ")
-        #     if rsp:
-        #         self.tcpdump_pid = int(rsp)
-        #         break
-        self.tcpdump_pid = self.rshark_check_tcpdump()
-        
-        if self.store_types[self.store_type]["need_path"]:
-            #tm_year=2023, tm_mon=11, tm_mday=13, tm_hour=15, tm_min=44, tm_sec=4, tm_wday=0, tm_yday=317, tm_isdst=0
-            self.file = str(time.localtime().tm_year) + "_" +\
-                    str(time.localtime().tm_mon) + "_" +\
-                    str(time.localtime().tm_mday) + "_" +\
-                    str(time.localtime().tm_hour) + "_" +\
-                    str(time.localtime().tm_min) + "_" +\
-                    str(time.localtime().tm_sec) + ".pcapng"
+            self.tcpdump_pid = self.rshark_check_tcpdump()
+            
+            if self.store_types[self.store_type]["need_path"]:
+                #tm_year=2023, tm_mon=11, tm_mday=13, tm_hour=15, tm_min=44, tm_sec=4, tm_wday=0, tm_yday=317, tm_isdst=0
+                self.file = str(time.localtime().tm_year) + "_" +\
+                        str(time.localtime().tm_mon) + "_" +\
+                        str(time.localtime().tm_mday) + "_" +\
+                        str(time.localtime().tm_hour) + "_" +\
+                        str(time.localtime().tm_min) + "_" +\
+                        str(time.localtime().tm_sec) + ".pcapng"
+            else:
+                self.file = False
+
+            # notify the blocked caller task is runing
+            self.start_eventq.put(self.file)
+
+            self.lstore["cb"](self.lstore["arg"], proc_tcpdump.stdout)
+            if self.rshark_check_event():
+                pass
+            # else:
+            #     proc_tcpdump.wait(1)
+        except KeyboardInterrupt:
+            exit_sig(None, None)
         else:
-            self.file = False
-
-        # notify the blocked caller task is runing
-        self.start_eventq.put(self.file)
-
-        #pargsw = ["wireshark", "-k", "-i", "-"]
-        # check_output　is similar with popen except that the stdout　invalid for user in check output 
-        #proc_wireshark = subprocess.check_output(pargsw, stdin=proc_tcpdump.stdout)
-        self.lstore["cb"](self.lstore["arg"], proc_tcpdump.stdout)
-        if self.rshark_check_event():
-            pass
-        # else:
-        #     proc_tcpdump.wait(1)
-        self.wait_subprocess.remove(proc_tcpdump)
-        proc_tcpdump.kill()
-        proc_tcpdump.communicate()
-        proc_tcpdump.wait(5)
-        rshark_remove_running(self.rip, self.intf)
+            self.wait_subprocess.remove(proc_tcpdump)
+            proc_tcpdump.kill()
+            proc_tcpdump.communicate()
+            proc_tcpdump.wait(5)
+            rshark_remove_running(self.rip, self.intf)
 
 def rshark_conf_init(conf):
     if conf and os.path.exists(conf):

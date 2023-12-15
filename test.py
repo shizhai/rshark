@@ -172,17 +172,168 @@ def rshark_parse_lines(line):
 
         return rets
 
-for line in glines:
-    # print(rshark_parse_lines(line))
-    # rshark_parse_lines(line)
-    # xr = re.compile('\s(Acknowledgment)', re.IGNORECASE)
-    # print(xr.search(line))
+# for line in glines:
+#     # print(rshark_parse_lines(line))
+#     # rshark_parse_lines(line)
+#     # xr = re.compile('\s(Acknowledgment)', re.IGNORECASE)
+#     # print(xr.search(line))
 
-    with open("./t.hdr.txt", "r") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            pret = rshark_parse_lines(line)
-            if pret and pret["retry"]:
-                print(pret)
+#     with open("./t.hdr.txt", "r") as f:
+#         while True:
+#             line = f.readline()
+#             if not line:
+#                 break
+#             pret = rshark_parse_lines(line)
+#             if pret and pret["retry"]:
+#                 print(pret)
+
+# '''
+# 动态折线图演示示例
+# '''
+
+# import numpy as np
+# import matplotlib.pyplot as plt
+
+# plt.ion()
+# plt.figure(1)
+# t_list = []
+# result_list = []
+# t = 0
+
+# while True:
+#     if t >= 10 * np.pi:
+#         plt.clf()
+#         t = 0
+#         t_list.clear()
+#         result_list.clear()
+#     else:
+#         t += np.pi / 4
+#         t_list.append(t)
+#         result_list.append(np.sin(t))
+#         plt.plot(t_list, result_list,c='r',ls='-', marker='o', mec='b',mfc='w')  ## 保存历史数据
+#         #plt.plot(t, np.sin(t), 'o')
+#         plt.pause(0.1)
+
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import random
+# import sys
+
+# # plt.ion()
+# plt.figure(1)
+# t_list = []
+# r_list = []
+# r_list1 = []
+# t = 0
+
+# while True:
+#     try:
+#         t += 1
+#         t_list.append(t)
+#         r_list.append(random.randint(0, 10))
+#         plt.plot(t_list, r_list,c='r',ls='-', marker='o', mec='b',mfc='w')  ## 保存历史数据
+#         if t > 5:
+#             if len(r_list1) == 0:
+#                 r_list1 = [0] * len(r_list)
+#             else:
+#                 r_list1.append(random.randint(0, 10))
+
+#             print(len(r_list), len(r_list1))
+#             plt.plot(t_list, r_list1,c='b',ls='solid', marker='o', mec='b',mfc='w')  ## 保存历史数据
+#         #plt.plot(t, np.sin(t), 'o')
+#         plt.pause(0.5)
+#     except KeyboardInterrupt:
+#         plt.close()
+#         sys.exit()
+
+
+# import tkinter as tk
+# from matplotlib.figure import Figure
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# import numpy as np
+# import random
+# import sys
+
+# class MatplotlibEmbed(tk.Frame):
+#     def __init__(self, master=None):
+#         super().__init__(master)
+#         self.master = master
+#         self.pack()
+#         self.create_widgets()
+
+#     def create_widgets(self):
+#         # 创建 Figure 对象
+#         self.fig = Figure(figsize=(5, 4), dpi=100)
+
+#         # 获取 Figure 的坐标轴对象
+#         self.ax = self.fig.add_axes([0.1, 0.1, 0.8, 0.8])
+
+#         # 创建 FigureCanvasTkAgg 对象
+#         self.canvas = FigureCanvasTkAgg(self.fig, master=self)   
+#         self.canvas.draw()
+
+#         # 将 Canvas 组件放置在 Tkinter 窗口中
+#         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+#         # 启动动态更新
+#         self.animate()
+
+#     def animate(self):
+#         t_list = []
+#         r_list = []
+#         r_list1 = []
+#         t = 0
+
+#         while True:
+#             try:
+#                 t += 1
+#                 t_list.append(t)
+#                 r_list.append(random.randint(0, 10))
+#                 self.ax.clear()
+#                 self.ax.plot(t_list, r_list, c='r', ls='-', marker='o', mec='b', mfc='w')  # 保存历史数据
+
+#                 if t > 5:
+#                     if len(r_list1) == 0:
+#                         r_list1 = [0] * len(r_list)
+#                     else:
+#                         r_list1.append(random.randint(0, 10))
+
+#                     print(len(r_list), len(r_list1))
+#                     self.ax.plot(t_list, r_list1, c='b', ls='solid', marker='o', mec='b', mfc='w')  # 保存历史数据
+
+#                 self.canvas.draw()
+#                 self.update_idletasks()
+#                 self.master.update()  # 更新主循环
+#                 self.after(500)  # 间隔500毫秒
+#             except KeyboardInterrupt:
+#                 plt.close()
+#                 sys.exit()
+
+# # 创建 Tkinter 窗口
+# root = tk.Tk()
+# root.title("Matplotlib in Tkinter - Dynamic Update")
+
+# # 创建 MatplotlibEmbed 对象
+# app = MatplotlibEmbed(master=root)
+
+# # 运行 Tkinter 主循环
+# root.mainloop()
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+import mplcursors
+
+# 创建一些示例数据
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+# 绘制曲线
+fig, ax = plt.subplots()
+line, = ax.plot(x, y, label='sin(x)')
+
+# 添加标签
+mplcursors.cursor(hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Point {sel.target[0]:.2f}, {sel.target[1]:.2f}"))
+
+plt.legend()
+plt.show()
