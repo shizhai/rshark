@@ -51,7 +51,6 @@ else:
 def rshark_get_path_info():
     return {"platform": os_platform, "current_path": current_path, "store_parent_path": store_parent_path}
 
-
 def rshark_gen_sniffer_openwrt_wireless_conf(target_type):
     if target_type == "QSDK":
         return '''
@@ -192,7 +191,7 @@ def exit_sig(signum, frame):
     if len(pshark_data_cache) > 0:
         print("=========pshark cache=========")
         print(pshark_data_cache)
-    
+
     print("Exit with signum {}...".format(signum))
     sys.exit()
 
@@ -237,7 +236,7 @@ def rshark_lookup_hosts(ip, ifraise, useTunnel):
     for host in conf_hosts:
         if host["ip"] == ip and host["usetunnel"] == useTunnel:
             return host
-    
+
     print("host: " + ip + " Not found!")
     if ifraise:
         raise
@@ -251,7 +250,6 @@ def rshark_get_hosts(useTunnel):
             rsp.append(item)
 
     return rsp
-
 
 def is_valid_mac_address(mac_address):
     # 正则表达式匹配标准MAC地址格式
@@ -343,7 +341,7 @@ class Rshark():
             self.exit_event.set()
             return True
         return False
-    
+
     def rshark_force_exit(self):
         if self.tcpdump_pid > 0:
             print("kill pid: ", self.tcpdump_pid)
@@ -745,7 +743,6 @@ class Rshark():
                     metad["retry"] = 0
             # print(self.data_cache[ta])
 
- 
         # return self.data_cache
 
     def rshark_store_pyshark(self, arg, inputd):
@@ -757,7 +754,7 @@ class Rshark():
 
     def rshark_parse_lines(self, line, rclass_reg_list, rclass_list, rclass_names, regs):
         rets = {}
-    
+
         # print(rclass_ctrl_reg)
         rci = -1
         # print(rclass_reg_list)
@@ -768,17 +765,17 @@ class Rshark():
             rcs = rcc.search(line)
             if not rcs:
                 continue
-            
+
             item = rcs.groups()[0]
             # print(rclass_list, item, rc)
             rci = rclass_list.index(item)
             break
-        
+
         # print(rclass_list[rci] if rci >= 0 else "None")
         if rci >= 0 and rclass_list[rci] in regs:
             rets["dot11_frame_type"] = rclass_names[rclass_list[rci]]
             # print(rclass_list[rci], rclass_names[rclass_list[rci]])
-    
+
             rets["ra"] = "None"
             rets["ta"] = "None"
             srssi = regs["rssi"].search(line)
@@ -787,7 +784,7 @@ class Rshark():
             rets["retry"] = True if sretry else False
             regt = regs[rclass_list[rci]]
             # print(regt)
-    
+
             for c in regt:
                 for r in regt[c]:
                     ci = r.search(line)
@@ -796,7 +793,7 @@ class Rshark():
                         # print(" ", c, "->", g[1], end="")
                         rets[c] = g[1]
                         break
-                    
+
             return rets
 
     def rshark_store_pyshark_quick_parse(self, arg, inputd):
@@ -831,18 +828,18 @@ class Rshark():
         rclass_list = rclass_list + rclass_mgmt_list
         rclass_mgmt_reg = r"|".join(rclass_mgmt_list)
         rclass_reg_list.append(rclass_mgmt_reg)
-    
+
         rclass_data_list = list(rclass_data_name.keys())
         rclass_list = rclass_list + rclass_data_list
         rclass_data_reg = r"|".join(rclass_data_list)
         rclass_reg_list.append(rclass_data_reg)
         # rclass_reg_list = rclass_reg_list + rclass_data_list
-    
+
         # print(rclass)
-    
+
         rclass_names = {**rclass_data_name, **rclass_mgmt_name, **rclass_ctrl_name}
         # print(rclass_names)
-    
+
         regs = {}
         regsd = {
             "ra": [
@@ -855,9 +852,9 @@ class Rshark():
                 re.compile(r'(DA):.* BSSID:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) .*(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Data', re.I),
                 re.compile(r'(RA):.* TA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) .*(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Data', re.I),
             ]}
-    
+
         regs["Data"] = regsd
-    
+
         # RA:78:60:5b:b9:35:fd Acknowledgment
         regs["Acknowledgment"] = {
             "ra":[
@@ -865,10 +862,10 @@ class Rshark():
                 re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Acknowledgment'),
             ],
             "ta":[
-            
+
             ]
         }
-    
+
         # RA:48:f1:7f:a9:a1:55 TA:4c:77:66:c5:c2:c1 Request-To-Send
         regs["Request-To-Send"] = {
             "ra":[
@@ -880,7 +877,7 @@ class Rshark():
                 re.compile(r'(RA):.* TA:(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) Request-To-Send'),
             ]
         }
-    
+
         # RA:78:60:5b:b9:35:fd Clear-To-Send
         regs["Clear-To-Send"] = {
             "ra":[
@@ -904,7 +901,7 @@ class Rshark():
 
         for mitem in rclass_mgmt_name:
             regs[mitem] = regs["mgmt"]
-    
+
         regs["rssi"] = re.compile(r'(\S*)dBm signal', re.I)
         regs["Retry"] = re.compile(r'\sRetry\s', re.I)
 
@@ -912,7 +909,11 @@ class Rshark():
 
         # for line in inputd.readline():
         for line in inputd:
-            line = line.decode('utf-8')
+            try:
+                line = line.decode('utf-8')
+            except Exception:
+                continue
+
             if not leggal_start.match(line):
                 # print(line)
                 continue
@@ -1061,11 +1062,11 @@ class Rshark():
             # print(dir(proc_tcpdump))
             # print(proc_tcpdump.stdout)
             # print(type(proc_tcpdump.stdout))
-            
+
             self.wait_subprocess.append(proc_tcpdump)
 
             self.tcpdump_pid = self.rshark_check_tcpdump()
-            
+
             if self.store_types[self.store_type]["need_path"]:
                 #tm_year=2023, tm_mon=11, tm_mday=13, tm_hour=15, tm_min=44, tm_sec=4, tm_wday=0, tm_yday=317, tm_isdst=0
                 self.file = str(time.localtime().tm_year) + "_" +\
@@ -1134,7 +1135,6 @@ def rshark_conf_init(conf):
 #     if args.conf and os.path.exists(args.conf):
 #         rshark_from_conf(args.conf, None)
 #         # print(conf_hosts)
-
 
 #     if not args.ip:
 #         if not args.conf:

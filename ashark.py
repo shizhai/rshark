@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
+import mplcursors
 
 os_platform = sys.platform.lower()
 
@@ -136,7 +137,7 @@ class SnifferWin:
     def trigger_update_pframe_info(self, event):
         info_trigger_value = self.wrinfo["value" + self.tirgger_pframe].get()
         if info_trigger_value.startswith("pshark://"):
-            print(info_trigger_value)
+            # print(info_trigger_value)
             rshark_toggle_pframe(self.pframe, True)
         else:
             rshark_toggle_pframe(self.pframe, False)
@@ -233,7 +234,6 @@ class SnifferWin:
         self.rinfo["pmacs"] = self.pmacs
 
         return self.rinfo
-
 
 class NetworkTestGUI:
     def __init__(self, mframe, pframe, pfframe):
@@ -481,7 +481,6 @@ class NetworkTestGUI:
                         self.data_boxs[rssiv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[rssiv], state="readonly", width=8, justify="center")
                         self.data_boxs[rssiv + "v"].grid(row=self.data_boxs[macs + "r"], column=rssiv_column, padx=1, pady=5, sticky="ew")
 
-
                     cntv = macs + "cnts" + pkt_filed
                     cntv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("cnt")
                     # print("cntv_column: ", cntv_column)
@@ -516,7 +515,7 @@ class NetworkTestGUI:
                         self.data_boxs[retryv + "v"] = tk.Entry(self.data_frame, textvariable=self.data_boxs[retryv], state="readonly", width=8, justify="center")
                         self.data_boxs[retryv + "v"].grid(row=self.data_boxs[macs + "r"],
                                                             column=retryv_column, padx=1, pady=5, sticky="ew")
-        
+
         self.update_plot()
 
     def plot_color_handle(self, method):
@@ -535,6 +534,19 @@ class NetworkTestGUI:
         else:
             return len(self.prc_list)
 
+    def fig_on_scroll_event(self, event):
+        zoom_factor = 1.2 if event.step > 0 else 1 / 1.2
+        x, y = event.xdata, event.ydata
+        new_xlim = [x - (x - self.pfframe["plot"].get_xlim()[0]) / zoom_factor,
+                    x + (self.pfframe["plot"].get_xlim()[1] - x) / zoom_factor]
+        new_ylim = [y - (y - self.pfframe["plot"].get_ylim()[0]) / zoom_factor,
+                    y + (self.pfframe["plot"].get_ylim()[1] - y) / zoom_factor]
+        self.pfframe["plot"].set_xlim(new_xlim)
+        self.pfframe["plot"].set_ylim(new_ylim)
+
+        # 重新绘制图形
+        self.pfframe["canvas"].draw()
+
     def update_plot(self):
         # print(self.pr_list)
         self.pfframe["plot"].clear()
@@ -550,6 +562,8 @@ class NetworkTestGUI:
         # 在 Canvas 上重新绘制
         self.pfframe["canvas"].draw()
         self.pfframe["root"].update()
+        # 在鼠标悬停时显示坐标值
+        # mplcursors.cursor(hover=True)
 
     def push_retry_plot_data(self, mac1, mac2, data_info):
         '''
@@ -597,7 +611,7 @@ class NetworkTestGUI:
             print("Already is running and please stop first!")
             messagebox.showinfo("Information", "Already is running and please stop first!")
             return
-        
+
         self.client_button.configure(state="disabled")
         self.stop_button.configure(state="active")
 
@@ -670,7 +684,6 @@ class NetworkTestGUI:
         self.prc_list = []
         self.plot_color_handle("RESET")
 
-
     def __del__(self):
         self.running = False
 
@@ -700,7 +713,7 @@ class NetTestClient:
 
         if self.protocol == "UDP":
             cmd.append("-u")
-        
+
         cmd.append("-i")
         cmd.append("1")
         cmd.append("-t")
@@ -771,7 +784,7 @@ def rshark_toggle_pframe(pframe, pshow=False):
         root.maxsize(width=gwidth_min, height=gheight_min + 10) 
         root.minsize(width=gwidth_min, height=gheight_min + 10)
         parent.grid_forget()
-    
+
     root.update()
     pframe.update()
 
@@ -798,22 +811,20 @@ def rshark_main():
     pfframe = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
     pfframe.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
-
     pfframe.update()
     # print(pfframe.winfo_width(), pfframe.winfo_height())
     # pfframe_fig = Figure(figsize=(self.pfframe["pfframe"].winfo_width()/100, self.pfframe["pfframe"].winfo_height()/100), dpi=100)
     pfframe_fig = Figure(figsize=(pfframe.winfo_width()/100, pfframe.winfo_height()/100), dpi=100)
     # pfframe_fig = Figure(figsize=(2, 1), dpi=100)
     # pfframe_ax = pfframe_fig.add_subplot(111)
-    pfframe_ax = pfframe_fig.add_axes([0.05, 0.1, 0.9, 0.8])
-    
+    pfframe_ax = pfframe_fig.add_axes([0.07, 0.1, 0.9, 0.8])
+
     # 将 matplotlib 图形嵌入到 tkinter 窗口中
     pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=pfframe)   
     pfframe_canvas.draw()
     # pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
     pfframe_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
 
-    # pfframe["plot"] = pfframe_ax
     # pfframe_ax.plot([0, 1, 2, 3], [1, 2, 3, 4], label="test")
 
     # plt.xlabel("time(s)")
@@ -841,13 +852,19 @@ def rshark_main():
 
     pdframe_interior_frame.bind("<Configure>", update_scroll_region)
     pdframe_canvas.bind("<Configure>", update_scroll_region)
-    pdframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    # pdframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    pdframe_canvas.bind("<MouseWheel>", _on_mousewheel)
 
     # pfframe_info = {"pfframe": pfframe, "plot": pfframe_ax}
 
     pfframe_info = {"root":root, "pfframe": pfframe, "plot": pfframe_ax, "canvas": pfframe_canvas}
 
     ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pfframe_info)
+
+    pfframe_fig.canvas.mpl_connect('scroll_event', ntg.fig_on_scroll_event)
+    # pfframe_fig.canvas.mpl_connect('button_press_event', ntg.fig_on_scroll_event)
+    # 在鼠标悬停时显示坐标值
+    mplcursors.cursor(hover=True)
 
     # ntg.animation = FuncAnimation(pfframe_fig, ntg.update_plot, frames=100, interval=100)
     ntg.update_plot()

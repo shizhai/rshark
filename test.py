@@ -320,20 +320,103 @@ def rshark_parse_lines(line):
 # root.mainloop()
 
 
+# import matplotlib.pyplot as plt
+# import numpy as np
+# import mplcursors
+
+# # 创建一些示例数据
+# x = np.linspace(0, 10, 100)
+# y = np.sin(x)
+
+# # 绘制曲线
+# fig, ax = plt.subplots()
+# line, = ax.plot(x, y, label='sin(x)')
+
+# # 添加标签
+# mplcursors.cursor(hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Point {sel.target[0]:.2f}, {sel.target[1]:.2f}"))
+
+# plt.legend()
+# plt.show()
+
+
+import tkinter as tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
-import numpy as np
+
+
 import mplcursors
 
-# 创建一些示例数据
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
+class ZoomablePlot:
+    def __init__(self, master):
+        self.master = master
+        self.fig, self.ax = self.create_plot()
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.master)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-# 绘制曲线
-fig, ax = plt.subplots()
-line, = ax.plot(x, y, label='sin(x)')
+        # 绑定鼠标事件
+        self.canvas.mpl_connect('scroll_event', self.on_scroll)
+        self.canvas.mpl_connect('button_press_event', self.on_button_press)
+        self.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.canvas.mpl_connect('button_release_event', self.on_button_release)
 
-# 添加标签
-mplcursors.cursor(hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Point {sel.target[0]:.2f}, {sel.target[1]:.2f}"))
+        # 用于存储鼠标左键按下的初始位置
+        self.start_x = None
+        self.start_y = None
 
-plt.legend()
-plt.show()
+        # 在鼠标悬停时显示坐标值
+        mplcursors.cursor(hover=True)
+
+    def create_plot(self):
+        fig, ax = plt.subplots()
+        x = [i for i in range(10)]
+        y = [i**2 for i in x]
+        ax.plot(x, y, marker='o', label='y = x^2')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_title('Zoomable Plot')
+        ax.legend()
+        return fig, ax
+
+    def on_scroll(self, event):
+        if event.name == 'scroll_event' and event.inaxes:
+            x, y = event.xdata, event.ydata
+            self.zoom_at_point(x, y, event.step)
+
+    def on_button_press(self, event):
+        if event.button == 1:
+            self.start_x = event.x
+            self.start_y = event.y
+
+    def on_motion(self, event):
+        if self.start_x is not None and self.start_y is not None:
+            # 防止拖动窗口的默认行为
+            self.master.geometry('+%d+%d' % (self.master.winfo_x() + (event.x - self.start_x),
+                                             self.master.winfo_y() + (event.y - self.start_y)))
+
+    def on_button_release(self, event):
+        if event.button == 1:
+            self.start_x = None
+            self.start_y = None
+
+    def zoom_at_point(self, x, y, step):
+        zoom_factor = 1.2 if step > 0 else 1 / 1.2
+        new_xlim = [x - (x - self.ax.get_xlim()[0]) / zoom_factor,
+                    x + (self.ax.get_xlim()[1] - x) / zoom_factor]
+        new_ylim = [y - (y - self.ax.get_ylim()[0]) / zoom_factor,
+                    y + (self.ax.get_ylim()[1] - y) / zoom_factor]
+        self.ax.set_xlim(new_xlim)
+        self.ax.set_ylim(new_ylim)
+        self.canvas.draw()
+
+# 创建主窗口
+root = tk.Tk()
+root.title("Zoomable Plot Example")
+
+# 创建 ZoomablePlot 实例
+zoomable_plot = ZoomablePlot(root)
+
+# 运行主循环
+root.mainloop()
+
