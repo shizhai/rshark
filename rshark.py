@@ -213,7 +213,7 @@ def rshark_from_conf(file, hosts_out=None):
             lhost["port"] = l[2]
             lhost["ip"] = l[3]
             if os_platform.startswith("win"):
-                lhost["dst"] = "local://" + current_path + "\stores\\" + lhost["ip"] + "\\" # default store to script path
+                lhost["dst"] = "local://" + current_path + r"\stores\\" + lhost["ip"] + "\\" # default store to script path
             else:
                 lhost["dst"] = "local://" + current_path + "/stores/" + lhost["ip"] + "/"# default store to script path
 
@@ -262,6 +262,7 @@ class Rshark():
         self.new_eloop = None
         self.pipc = None
         self.data_cache = {}
+        self.rate_db = {}
         self.rip = rip
         self.rport = rport
         self.ruser = ruser
@@ -316,10 +317,10 @@ class Rshark():
 
         posix_nt_home = os.path.expanduser("~")
         if os_platform.startswith("win"):
-            if  not os.path.exists(posix_nt_home + "\.ssh\id_rsa.pub"):
+            if  not os.path.exists(posix_nt_home + r"\.ssh\id_rsa.pub"):
                 print("create ssh key1...")
-                if not os.path.exists(posix_nt_home + "\.ssh"):
-                    os.makedirs(posix_nt_home + "\.ssh")
+                if not os.path.exists(posix_nt_home + r"\.ssh"):
+                    os.makedirs(posix_nt_home + r"\.ssh")
                 ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f %userprofile%/.ssh/id_rsa -q"
                 # print(ssh_keygen_cmd)
                 subprocess.Popen(ssh_keygen_cmd, stdout=subprocess.PIPE, shell=True)
@@ -556,7 +557,7 @@ class Rshark():
             #         child.sendline(self.rpasswd + "\r")
             #         print("send password", self.rpasswd)
             #         break
-            ssh_copy_id = str(os.path.expanduser("~")) + "\.ssh\id_rsa.pub"
+            ssh_copy_id = str(os.path.expanduser("~")) + r"\.ssh\id_rsa.pub"
             ssh_copy_id = '/'.join(ssh_copy_id.split('\\'))
             #+ self.ruser +"@" + self.rip + ":/tmp/"
             id_pubs = []
@@ -640,12 +641,12 @@ class Rshark():
         wiresharkx = "wireshark"
         result = None
         if os_platform.startswith("win"):
-            cmd1 = "dir /s /b \"%ProgramData%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx +".lnk\""
+            cmd1 = r"dir /s /b \"%ProgramData%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx +".lnk\""
             rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
             result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
             match = re.search(r'ProgramData', result, re.M|re.I).group(0)
             if not match:
-                cmd1 = "dir /s /b \"%APPDATA%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx + ".lnk\""
+                cmd1 = r"dir /s /b \"%APPDATA%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx + ".lnk\""
                 rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
                 result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
                 match = re.search(r'AppData', result, re.M|re.I).group(0)
@@ -744,6 +745,68 @@ class Rshark():
             # print(self.data_cache[ta])
 
         # return self.data_cache
+
+    def get_rate_from_line(self, line):
+        rbps = [
+            # rmcs
+            re.compile(r'\s(\S+\s\Sb/s).*(MCS\s\S)'),
+            # rbps
+            re.compile(r'(tsft).*\s(\S+\s\Sb/s)')
+        ]
+
+        for r in rbps:
+            rsp = r.search(line)
+            if rsp:
+                return rsp.group(2).replace("Mb/s", "").replace(" ", "")
+
+        return None
+
+    def rshark_rate_db_addr_check(self, tx, rx):
+        illegal = ["none", "ff:ff:ff:ff:ff:ff", "00:00:00:00:00:00"]
+        if tx.lower() in illegal:
+            return False
+
+        if rx.lower() in illegal:
+            return False
+
+        return True
+
+    def rshark_add_rate_db(self, tx, rx, retry, line):
+        """
+        {rate1: {mac1->mac2: {cnts: 123, retry: 12}}, rate2: {mac1->mac3: {cnts:123, retry: 23}}}
+        """
+
+        if not self.rshark_rate_db_addr_check(tx, rx):
+            return
+
+        mac_indx = tx +"->" + rx
+        rate_value = self.get_rate_from_line(line)
+
+        if not rate_value:
+            return
+
+        macs_value = {}
+        if not rate_value in self.rate_db:
+            macs_value[mac_indx] = {}
+            macs_value[mac_indx]["cnts"] = 1 if not retry else 0
+            macs_value[mac_indx]["retry"] = 1 if retry else 0
+            self.rate_db[rate_value] = macs_value
+        else:
+            macs_value = self.rate_db[rate_value]
+            macs_macv = {}
+            if mac_indx in macs_value:
+                macs_macv = macs_value[mac_indx]
+            else:
+                macs_macv = {"cnts":0, "retry": 0}
+
+            if retry:
+                macs_macv["retry"] += 1
+            else:
+                macs_macv["cnts"] += 1
+
+            self.rate_db[rate_value] = macs_macv
+
+            # print(self.rate_db)
 
     def rshark_store_pyshark(self, arg, inputd):
         if pshark_realtime:
@@ -935,10 +998,12 @@ class Rshark():
             # def rshark_store_addb(self, ta, ra, rssi, dot11_frame_type, retry):
             self.rshark_store_addb(retes["ta"], retes["ra"], retes["rssi"], retes["dot11_frame_type"], retes["retry"])
 
+            self.rshark_add_rate_db(retes["ta"], retes["ra"], retes["retry"], line)
+
             if time.time() - pre_time > 3:
                 if display_realtime:
                     if arg and type(arg) == dict and callable(arg["cb"]):
-                        arg["cb"](self.data_cache)
+                        arg["cb"](self.data_cache, self.rate_db)
                     else:
                         with open("presults.txt", "+w") as f:
                             for mac1 in self.data_cache:

@@ -24,9 +24,9 @@ os_platform = sys.platform.lower()
 root = tk.Tk()
 
 gwidth = 1780
-gheight = 815
+gheight = 840
 gwidth_min = 530
-gheight_min = 815
+gheight_min = gheight
 
 IPERF_PATH=None
 if os_platform.startswith("win"):
@@ -236,10 +236,10 @@ class SnifferWin:
         return self.rinfo
 
 class NetworkTestGUI:
-    def __init__(self, mframe, pframe, pfframe):
+    def __init__(self, mframe, pdframe, pfframe):
         self.running = False
         self.parse_on_time = True
-        self.event_loop = asyncio.get_event_loop()
+        # self.event_loop = asyncio.get_event_loop()
         self.client_thread = None
         self.pshark_thread = None
         self.root = mframe
@@ -270,7 +270,7 @@ class NetworkTestGUI:
 
         # self.data_frame = ScrollableFrame(self.root)
         # self.data_frame.grid(row = self.rows, column=3, columnspan= len(self.ptitle_fields) * len(self.psub_fields) + 2, padx=0, pady=0, sticky="we")
-        self.data_frame = pframe
+        self.data_frame = pdframe
         self.pfframe = pfframe
         self.pt_pre = 0
         self.pt_list = []
@@ -424,8 +424,9 @@ class NetworkTestGUI:
         if macs+"v" in self.data_boxs:
             self.data_boxs[macs+"v"].config(width=entry_width)
 
-    def update_data(self, d):
+    def update_data(self, d, rate_db):
         # print(d)
+        print(rate_db)
         # update xlabel(time)
         if self.pt_pre == 0:
             self.pt_list.append(0)
@@ -518,6 +519,11 @@ class NetworkTestGUI:
 
         self.update_plot()
 
+        prate_frame = self.pfframe["prate_retry_frame"]
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", d)
+        prate_frame = self.pfframe["prate_frame"]
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", d)
+
     def plot_color_handle(self, method):
         if method == "RESET":
             self.prc_list = [
@@ -537,30 +543,32 @@ class NetworkTestGUI:
     def fig_on_scroll_event(self, event):
         zoom_factor = 1.2 if event.step > 0 else 1 / 1.2
         x, y = event.xdata, event.ydata
-        new_xlim = [x - (x - self.pfframe["plot"].get_xlim()[0]) / zoom_factor,
-                    x + (self.pfframe["plot"].get_xlim()[1] - x) / zoom_factor]
-        new_ylim = [y - (y - self.pfframe["plot"].get_ylim()[0]) / zoom_factor,
-                    y + (self.pfframe["plot"].get_ylim()[1] - y) / zoom_factor]
-        self.pfframe["plot"].set_xlim(new_xlim)
-        self.pfframe["plot"].set_ylim(new_ylim)
+        pretry_frame = self.pfframe["pretry_frame"]
+        new_xlim = [x - (x - pretry_frame["plot"].get_xlim()[0]) / zoom_factor,
+                    x + (pretry_frame["plot"].get_xlim()[1] - x) / zoom_factor]
+        new_ylim = [y - (y - pretry_frame["plot"].get_ylim()[0]) / zoom_factor,
+                    y + (pretry_frame["plot"].get_ylim()[1] - y) / zoom_factor]
+        pretry_frame["plot"].set_xlim(new_xlim)
+        pretry_frame["plot"].set_ylim(new_ylim)
 
         # 重新绘制图形
-        self.pfframe["canvas"].draw()
+        pretry_frame["canvas"].draw()
 
     def update_plot(self):
         # print(self.pr_list)
-        self.pfframe["plot"].clear()
+        pretry_frame = self.pfframe["pretry_frame"]
+        pretry_frame["plot"].clear()
         for item in self.pr_list:
             # print(item, self.pr_list[item]["pdata"])
             # 清除当前图形并绘制新数据
-            self.pfframe["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], ls='-', marker='.', mec='b', mfc='w', label=item)
-            self.pfframe["plot"].set_title('Retry Counts Tendency Chart')
-            self.pfframe["plot"].set_xlabel('time(s)')
-            self.pfframe["plot"].set_ylabel('cnts(pkt)')
-            self.pfframe["plot"].legend()
+            pretry_frame["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], ls='-', marker='.', mec='b', mfc='w', label=item)
+            pretry_frame["plot"].set_title('Retry Counts Tendency Chart')
+            pretry_frame["plot"].set_xlabel('time(s)')
+            pretry_frame["plot"].set_ylabel('cnts(pkt)')
+            pretry_frame["plot"].legend()
 
         # 在 Canvas 上重新绘制
-        self.pfframe["canvas"].draw()
+        pretry_frame["canvas"].draw()
         self.pfframe["root"].update()
         # 在鼠标悬停时显示坐标值
         # mplcursors.cursor(hover=True)
@@ -603,6 +611,55 @@ class NetworkTestGUI:
         self.pr_list[target]["pdata"].append(d["retry"])
         # print(target, self.pt_list, self.pr_list[target]["pdata"])
 
+    def update_bar(self, root, canvas, bar_ax, field, d):
+        # 清空原有的图表数据
+        bar_ax.clear()
+
+        # 绘制两组柱状图，调整第二组柱状图的位置
+        bar_width = 0.1
+        categories = list(d.keys())
+        bar_positions = range(len(categories))
+
+        # list(set(list(a.keys()) + list(b.keys()))) 利用set去重
+        macs_list = []
+
+        for category in d:
+            macs_list = macs_list + list(d[category].keys())
+
+        # get all mac_pair group
+        macs_list = list(set(macs_list))
+
+        # {mac1mac2:[0(1mbps), 1(2mbps), 0, ...]}
+        mac_rates_dict = {}
+        for mac in macs_list:
+            mac_rates_dict[mac] = [ 0 for _ in range(0, len(categories))]
+            for category in d:
+                if mac in d[category]:
+                    mac_rates_dict[mac][categories.index(category)] = d[category][mac][field]
+        
+        mac_rates_mac_list = list(mac_rates_dict.keys())
+
+        bars = []
+        for mac in mac_rates_mac_list:
+            i = mac_rates_mac_list.index(mac)
+            bars.append(bar_ax.bar([j + i * bar_width for j in bar_positions], mac_rates_dict[mac], width=bar_width, label=mac, align='edge'))
+
+        # 添加图例
+        bar_ax.legend()
+
+        # 设置横坐标刻度和标签
+        bar_ax.set_xticks([i + (len(mac_rates_mac_list) - 1) * bar_width/2 for i in bar_positions])
+        bar_ax.set_xticklabels(categories)
+
+        # 在每个柱形上方添加具体值
+        for _, group_bars in enumerate(bars):
+            for bar in group_bars:
+                yval = bar.get_height()
+                bar_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
+
+        canvas.draw()
+        root.update()
+
     def start_run(self):
         self.start_client()
 
@@ -633,6 +690,25 @@ class NetworkTestGUI:
         self.pshark_thread.start()
 
     def run_pshark(self):
+        d = {"1":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+             "6":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+             "24":{"mac2mac3":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+             "mcs4":{"mac3mac4":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+             }
+        while True:
+            cnts = random.randint(0, 10)
+            retry = random.randint(0, 10)
+            for rate in d:
+                for mac in d[rate]:
+                    d[rate][mac]["cnts"] += cnts
+                    d[rate][mac]["retry"] += retry
+                    cnts = random.randint(0, 10)
+                    retry = random.randint(0, 10)
+
+            prate_frame = self.pfframe["prate_frame"]
+            self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", d)
+            time.sleep(1)
+
         msgbox_info = self.sw.get_user_input()
         # print("---------------------><", msgbox_info)
 
@@ -794,42 +870,34 @@ def rshark_main():
     root.maxsize(width=gwidth_min, height=gheight_min + 10) 
     root.minsize(width=gwidth_min, height=gheight_min + 10)
 
+    root.title("Wi-Fi T/RX Analysis")
+
     mframe = tk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
     mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
-
-    # ppframe = tk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
-    # ppframe.grid(row=0, column=1, rowspan=2, padx=5, pady=0, sticky="wen")
-    # # ppframe.grid_forget()
 
     # parse data frame
     # pdframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
     pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
     pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
 
-    # parse figure frame
-    # pfframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
-    pfframe = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    pfframe.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    # 必须放在frame声明grid之前，否则notebook会覆盖frame
+    notebook = ttk.Notebook(root)
+    notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
-    pfframe.update()
-    # print(pfframe.winfo_width(), pfframe.winfo_height())
-    # pfframe_fig = Figure(figsize=(self.pfframe["pfframe"].winfo_width()/100, self.pfframe["pfframe"].winfo_height()/100), dpi=100)
-    pfframe_fig = Figure(figsize=(pfframe.winfo_width()/100, pfframe.winfo_height()/100), dpi=100)
-    # pfframe_fig = Figure(figsize=(2, 1), dpi=100)
-    # pfframe_ax = pfframe_fig.add_subplot(111)
-    pfframe_ax = pfframe_fig.add_axes([0.07, 0.1, 0.9, 0.8])
+    # parse frame(parse retry frame, parse rate cnt frame, parse rate retry frame)
+    # parse retry frame
+    pretry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
-    # 将 matplotlib 图形嵌入到 tkinter 窗口中
-    pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=pfframe)   
-    pfframe_canvas.draw()
-    # pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-    pfframe_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+    # parse rate cnt frame
+    prate_cnt_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
-    # pfframe_ax.plot([0, 1, 2, 3], [1, 2, 3, 4], label="test")
+    # parse rate retry frame
+    prate_retry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
-    # plt.xlabel("time(s)")
-    # plt.ylabel("cnts(pkt)")
-
+    # -----------------------------------------pdframe------------------------------------------
     # 接下来为数据分析窗口(pframe)创建画布，以方便实现滚动条
     # 画布上面创建内侧窗口(interior frame)，并将内侧窗口附着在画布上新创建的窗体(create_window)上
     # 最后将滚动条通过画布的configure方法添加至画布
@@ -855,21 +923,80 @@ def rshark_main():
     # pdframe_canvas.bind_all("<MouseWheel>", _on_mousewheel)
     pdframe_canvas.bind("<MouseWheel>", _on_mousewheel)
 
-    # pfframe_info = {"pfframe": pfframe, "plot": pfframe_ax}
 
-    pfframe_info = {"root":root, "pfframe": pfframe, "plot": pfframe_ax, "canvas": pfframe_canvas}
+    # -----------------------------------------pretry_frame------------------------------------------
+    pretry_frame.update()
+    pretry_frame_fig = Figure(figsize=(pretry_frame.winfo_width()/100, pretry_frame.winfo_height()/100), dpi=100)
 
-    ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pfframe_info)
+    # (left, bottom, width, height)
+    pretry_frame_ax = pretry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
 
-    pfframe_fig.canvas.mpl_connect('scroll_event', ntg.fig_on_scroll_event)
+    # 将 matplotlib 图形嵌入到 tkinter 窗口中
+    pretry_frame_canvas = FigureCanvasTkAgg(pretry_frame_fig, master=pretry_frame)   
+    pretry_frame_canvas.draw()
+    # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    pretry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+    # -----------------------------------------prate_cnt_frame------------------------------------------
+    prate_cnt_frame.update()
+    prate_frame_fig = Figure(figsize=(prate_cnt_frame.winfo_width()/100, prate_cnt_frame.winfo_height()/100), dpi=100)
+
+    # (left, bottom, width, height)
+    prate_frame_ax = prate_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
+    # 使用 bar 函数绘制柱状图
+    # prframe_ax.bar(categories, values, color='blue')
+
+    # 将 matplotlib 图形嵌入到 tkinter 窗口中
+    prate_frame_canvas = FigureCanvasTkAgg(prate_frame_fig, master=prate_cnt_frame)
+    prate_frame_canvas.draw()
+    # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    prate_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+    # -----------------------------------------prate_retry_frame------------------------------------------
+    prate_retry_frame.update()
+    prate_retry_frame_fig = Figure(figsize=(prate_retry_frame.winfo_width()/100, prate_retry_frame.winfo_height()/100), dpi=100)
+
+    # (left, bottom, width, height)
+    prate_retry_frame_ax = prate_retry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
+    # 使用 bar 函数绘制柱状图
+    # prframe_ax.bar(categories, values, color='blue')
+
+    # 将 matplotlib 图形嵌入到 tkinter 窗口中
+    prate_retry_frame_canvas = FigureCanvasTkAgg(prate_retry_frame_fig, master=prate_retry_frame)
+    prate_retry_frame_canvas.draw()
+    prate_retry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+
+    pframe_info = {"root":root,
+                    "pretry_frame": {
+                        "frame": pretry_frame,
+                        "plot": pretry_frame_ax,
+                        "canvas": pretry_frame_canvas
+                     },
+                     "prate_frame":{
+                        "frame": prate_cnt_frame,
+                        "plot": prate_frame_ax,
+                        "canvas": prate_frame_canvas
+                     },
+                     "prate_retry_frame":{
+                        "frame": prate_retry_frame,
+                        "plot": prate_retry_frame_ax,
+                        "canvas": prate_retry_frame_canvas
+                     },
+                     }
+
+    ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pframe_info)
+
+    pretry_frame_fig.canvas.mpl_connect('scroll_event', ntg.fig_on_scroll_event)
     # pfframe_fig.canvas.mpl_connect('button_press_event', ntg.fig_on_scroll_event)
     # 在鼠标悬停时显示坐标值
-    mplcursors.cursor(hover=True)
+    # mplcursors.cursor(hover=True)
 
-    # ntg.animation = FuncAnimation(pfframe_fig, ntg.update_plot, frames=100, interval=100)
+    notebook.add(pretry_frame, text="RetryTrend")
+    notebook.add(prate_cnt_frame, text="RateCounts")
+    notebook.add(prate_retry_frame, text="RateRetry")
+
     ntg.update_plot()
-
-    # root.geometry(str(width)+"x"+str(gheight))
 
     root.mainloop()
 

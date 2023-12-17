@@ -339,84 +339,166 @@ def rshark_parse_lines(line):
 # plt.show()
 
 
+# import tkinter as tk
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# from matplotlib.figure import Figure
+# import matplotlib.pyplot as plt
+
+
+# import mplcursors
+
+# class ZoomablePlot:
+#     def __init__(self, master):
+#         self.master = master
+#         self.fig, self.ax = self.create_plot()
+#         self.canvas = FigureCanvasTkAgg(self.fig, master=self.master)
+#         self.canvas.draw()
+#         self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+#         # 绑定鼠标事件
+#         self.canvas.mpl_connect('scroll_event', self.on_scroll)
+#         self.canvas.mpl_connect('button_press_event', self.on_button_press)
+#         self.canvas.mpl_connect('motion_notify_event', self.on_motion)
+#         self.canvas.mpl_connect('button_release_event', self.on_button_release)
+
+#         # 用于存储鼠标左键按下的初始位置
+#         self.start_x = None
+#         self.start_y = None
+
+#         # 在鼠标悬停时显示坐标值
+#         mplcursors.cursor(hover=True)
+
+#     def create_plot(self):
+#         fig, ax = plt.subplots()
+#         x = [i for i in range(10)]
+#         y = [i**2 for i in x]
+#         ax.plot(x, y, marker='o', label='y = x^2')
+#         ax.set_xlabel('X-axis')
+#         ax.set_ylabel('Y-axis')
+#         ax.set_title('Zoomable Plot')
+#         ax.legend()
+#         return fig, ax
+
+#     def on_scroll(self, event):
+#         if event.name == 'scroll_event' and event.inaxes:
+#             x, y = event.xdata, event.ydata
+#             self.zoom_at_point(x, y, event.step)
+
+#     def on_button_press(self, event):
+#         if event.button == 1:
+#             self.start_x = event.x
+#             self.start_y = event.y
+
+#     def on_motion(self, event):
+#         if self.start_x is not None and self.start_y is not None:
+#             # 防止拖动窗口的默认行为
+#             self.master.geometry('+%d+%d' % (self.master.winfo_x() + (event.x - self.start_x),
+#                                              self.master.winfo_y() + (event.y - self.start_y)))
+
+#     def on_button_release(self, event):
+#         if event.button == 1:
+#             self.start_x = None
+#             self.start_y = None
+
+#     def zoom_at_point(self, x, y, step):
+#         zoom_factor = 1.2 if step > 0 else 1 / 1.2
+#         new_xlim = [x - (x - self.ax.get_xlim()[0]) / zoom_factor,
+#                     x + (self.ax.get_xlim()[1] - x) / zoom_factor]
+#         new_ylim = [y - (y - self.ax.get_ylim()[0]) / zoom_factor,
+#                     y + (self.ax.get_ylim()[1] - y) / zoom_factor]
+#         self.ax.set_xlim(new_xlim)
+#         self.ax.set_ylim(new_ylim)
+#         self.canvas.draw()
+
+# # 创建主窗口
+# root = tk.Tk()
+# root.title("Zoomable Plot Example")
+
+# # 创建 ZoomablePlot 实例
+# zoomable_plot = ZoomablePlot(root)
+
+# # 运行主循环
+# root.mainloop()
+
+# ratelines = [
+#     "42516158us tsft 1.0 Mb/s 2412 MHz 11b -52dBm signal -52dBm signal antenna 0 0us BSSID:82:60:5b:bb:67:d7 DA:ff:ff:ff:ff:ff:ff SA:82:60:5b:bb:67:d7 Beacon () [1.0* 2.0* 5.5* 11.0* 6.0 9.0 12.0 18.0 Mbit] ESS CH: 1, PRIVACY",
+#     "42522277us tsft 6.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 0us BSSID:5c:02:14:a7:99:ac DA:ff:ff:ff:ff:ff:ff SA:5c:02:14:a7:99:ac Beacon (OPEN_WRT_TEST) [6.0* 9.0 12.0* 18.0 24.0* 36.0 48.0 54.0 Mbit] ESS CH: 1, PRIVACY",
+#     "42522756us tsft 24.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 unknown 802.11 ctrl frame subtype (5)",
+#     "42522892us tsft 2412 MHz 11n -63dBm signal 43.3 Mb/s MCS 4 20 MHz short GI -63dBm signal antenna 0 0us BSSID:f4:6d:2f:d8:c3:f5 DA:f4:6d:2f:d8:c3:f5 SA:70:cf:49:eb:21:0c Unhandled Management subtype(e)"
+#     ]
+
+# def get_rate_from_line():
+#     for line in ratelines:
+#         rbps = [
+#         # rmcs
+#             re.compile(r'\s(\S+\s\Sb/s).*(MCS\s\S)'),
+#         # rbps
+#             re.compile(r'(tsft).*\s(\S+\s\Sb/s)')
+#         ]
+#         for r in rbps:
+#             rsp = r.search(line)
+#             if rsp:
+#                 return rsp.group(2).replace("Mb/s", "").replace(" ", "")
+
 import tkinter as tk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import random
 
+def update_bar_chart():
+    # 生成两组随机数据
+    new_values1 = [random.randint(10, 50) for _ in range(len(categories))]
+    new_values2 = [random.randint(10, 50) for _ in range(len(categories))]
 
-import mplcursors
+    # 清空原有的图表数据
+    pfframe_ax.clear()
 
-class ZoomablePlot:
-    def __init__(self, master):
-        self.master = master
-        self.fig, self.ax = self.create_plot()
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.master)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    # 绘制两组柱状图，调整第二组柱状图的位置
+    bar_width = 0.1
+    bar_positions = range(len(categories))
 
-        # 绑定鼠标事件
-        self.canvas.mpl_connect('scroll_event', self.on_scroll)
-        self.canvas.mpl_connect('button_press_event', self.on_button_press)
-        self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.canvas.mpl_connect('button_release_event', self.on_button_release)
+    bars1 = pfframe_ax.bar(bar_positions, new_values1, width=bar_width, label='Group 1', align='edge')
+    bars2 = pfframe_ax.bar([i + bar_width for i in bar_positions], new_values2, width=bar_width, label='Group 2', align='edge')
 
-        # 用于存储鼠标左键按下的初始位置
-        self.start_x = None
-        self.start_y = None
+    # 添加图例
+    pfframe_ax.legend()
 
-        # 在鼠标悬停时显示坐标值
-        mplcursors.cursor(hover=True)
+    # 设置横坐标刻度和标签
+    pfframe_ax.set_xticks([i + bar_width/2 for i in bar_positions])
+    pfframe_ax.set_xticklabels(categories)
 
-    def create_plot(self):
-        fig, ax = plt.subplots()
-        x = [i for i in range(10)]
-        y = [i**2 for i in x]
-        ax.plot(x, y, marker='o', label='y = x^2')
-        ax.set_xlabel('X-axis')
-        ax.set_ylabel('Y-axis')
-        ax.set_title('Zoomable Plot')
-        ax.legend()
-        return fig, ax
+    # 在每个柱形上方添加具体值
+    for bar in bars1:
+        yval = bar.get_height()
+        pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
 
-    def on_scroll(self, event):
-        if event.name == 'scroll_event' and event.inaxes:
-            x, y = event.xdata, event.ydata
-            self.zoom_at_point(x, y, event.step)
+    for bar in bars2:
+        yval = bar.get_height()
+        pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
 
-    def on_button_press(self, event):
-        if event.button == 1:
-            self.start_x = event.x
-            self.start_y = event.y
+    # 更新绘图区域
+    pfframe_canvas.draw()
 
-    def on_motion(self, event):
-        if self.start_x is not None and self.start_y is not None:
-            # 防止拖动窗口的默认行为
-            self.master.geometry('+%d+%d' % (self.master.winfo_x() + (event.x - self.start_x),
-                                             self.master.winfo_y() + (event.y - self.start_y)))
+    # 在这里加入更新的时间间隔，如果需要的话
+    root.after(1000, update_bar_chart)
 
-    def on_button_release(self, event):
-        if event.button == 1:
-            self.start_x = None
-            self.start_y = None
+# 准备柱状图数据
+categories = ["1", "2", "5.5", "6", "9", "11", "12", "18", "24", "36", "48", "54"]
 
-    def zoom_at_point(self, x, y, step):
-        zoom_factor = 1.2 if step > 0 else 1 / 1.2
-        new_xlim = [x - (x - self.ax.get_xlim()[0]) / zoom_factor,
-                    x + (self.ax.get_xlim()[1] - x) / zoom_factor]
-        new_ylim = [y - (y - self.ax.get_ylim()[0]) / zoom_factor,
-                    y + (self.ax.get_ylim()[1] - y) / zoom_factor]
-        self.ax.set_xlim(new_xlim)
-        self.ax.set_ylim(new_ylim)
-        self.canvas.draw()
-
-# 创建主窗口
+# 创建 tkinter 窗口
 root = tk.Tk()
-root.title("Zoomable Plot Example")
+root.title("Dynamic Bar Chart Example")
 
-# 创建 ZoomablePlot 实例
-zoomable_plot = ZoomablePlot(root)
+# 创建 Figure 和 Axes 对象
+pfframe_fig = Figure(figsize=(6, 4), dpi=100)
+pfframe_ax = pfframe_fig.add_axes([0.1, 0.1, 0.8, 0.8])
 
-# 运行主循环
+# 将 Matplotlib 图形嵌入到 tkinter 窗口中
+pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=root)
+pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+# 启动动态更新函数
+update_bar_chart()
+
+# 启动 tkinter 主循环
 root.mainloop()
-
