@@ -31,6 +31,10 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.3.2
+
+> fix wireshark startup fail as use r""
+
 v3.3.1
 
 > add retry count for each rate

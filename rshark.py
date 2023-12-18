@@ -642,12 +642,12 @@ class Rshark():
         wiresharkx = "wireshark"
         result = None
         if os_platform.startswith("win"):
-            cmd1 = r"dir /s /b \"%ProgramData%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx +".lnk\""
+            cmd1 = "dir /s /b \"%ProgramData%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx +".lnk\""
             rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
             result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
             match = re.search(r'ProgramData', result, re.M|re.I).group(0)
             if not match:
-                cmd1 = r"dir /s /b \"%APPDATA%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx + ".lnk\""
+                cmd1 = "dir /s /b \"%APPDATA%\Microsoft\Windows\Start Menu\Programs\\" + wiresharkx + ".lnk\""
                 rsp = subprocess.Popen(cmd1, stdout=subprocess.PIPE, shell=True)
                 result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
                 match = re.search(r'AppData', result, re.M|re.I).group(0)
