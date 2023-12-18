@@ -420,85 +420,91 @@ def rshark_parse_lines(line):
 # # 运行主循环
 # root.mainloop()
 
-# ratelines = [
-#     "42516158us tsft 1.0 Mb/s 2412 MHz 11b -52dBm signal -52dBm signal antenna 0 0us BSSID:82:60:5b:bb:67:d7 DA:ff:ff:ff:ff:ff:ff SA:82:60:5b:bb:67:d7 Beacon () [1.0* 2.0* 5.5* 11.0* 6.0 9.0 12.0 18.0 Mbit] ESS CH: 1, PRIVACY",
-#     "42522277us tsft 6.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 0us BSSID:5c:02:14:a7:99:ac DA:ff:ff:ff:ff:ff:ff SA:5c:02:14:a7:99:ac Beacon (OPEN_WRT_TEST) [6.0* 9.0 12.0* 18.0 24.0* 36.0 48.0 54.0 Mbit] ESS CH: 1, PRIVACY",
-#     "42522756us tsft 24.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 unknown 802.11 ctrl frame subtype (5)",
-#     "42522892us tsft 2412 MHz 11n -63dBm signal 43.3 Mb/s MCS 4 20 MHz short GI -63dBm signal antenna 0 0us BSSID:f4:6d:2f:d8:c3:f5 DA:f4:6d:2f:d8:c3:f5 SA:70:cf:49:eb:21:0c Unhandled Management subtype(e)"
-#     ]
+ratelines = [
+    "42516158us tsft 1.0 Mb/s 2412 MHz 11b -52dBm signal -52dBm signal antenna 0 0us BSSID:82:60:5b:bb:67:d7 DA:ff:ff:ff:ff:ff:ff SA:82:60:5b:bb:67:d7 Beacon () [1.0* 2.0* 5.5* 11.0* 6.0 9.0 12.0 18.0 Mbit] ESS CH: 1, PRIVACY",
+    "42522277us tsft 6.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 0us BSSID:5c:02:14:a7:99:ac DA:ff:ff:ff:ff:ff:ff SA:5c:02:14:a7:99:ac Beacon (OPEN_WRT_TEST) [6.0* 9.0 12.0* 18.0 24.0* 36.0 48.0 54.0 Mbit] ESS CH: 1, PRIVACY",
+    "42522756us tsft 24.0 Mb/s 2412 MHz 11g -54dBm signal -54dBm signal antenna 0 unknown 802.11 ctrl frame subtype (5)",
+    "929159527721us tsft 2412 MHz 11g -30dBm signal -84dBm noise antenna 0 User 0 MCS 8 LDPC FEC 20 MHz long GI Protected 48us CF +QoS DA:12:61:7d:59:eb:02 BSSID:4c:77:66:c5:c2:c1 SA:4c:77:66:c5:c2:c1 Data IV:a63 Pad 20 KeyID 0",
+    "42522892us tsft 2412 MHz 11n -63dBm signal 43.3 Mb/s MCS 4 20 MHz short GI -63dBm signal antenna 0 0us BSSID:f4:6d:2f:d8:c3:f5 DA:f4:6d:2f:d8:c3:f5 SA:70:cf:49:eb:21:0c Unhandled Management subtype(e)"
+    ]
 
-# def get_rate_from_line():
-#     for line in ratelines:
-#         rbps = [
-#         # rmcs
-#             re.compile(r'\s(\S+\s\Sb/s).*(MCS\s\S)'),
-#         # rbps
-#             re.compile(r'(tsft).*\s(\S+\s\Sb/s)')
-#         ]
-#         for r in rbps:
-#             rsp = r.search(line)
-#             if rsp:
-#                 return rsp.group(2).replace("Mb/s", "").replace(" ", "")
+def get_rate_from_line():
+    for line in ratelines:
+        rbps = [
+        # rmcs
+            re.compile(r'\s(\S+\s\Sb/s).*(MCS\s\S)'),
+            re.compile(r'(.*)\s(MCS\s\S)'),
+        # rbps
+            re.compile(r'(tsft).*\s(\S+\s\Sb/s)')
+        ]
+        for r in rbps:
+            rsp = r.search(line)
+            if rsp:
+                # return rsp.group(2).replace("Mb/s", "").replace(" ", "")
+                print(rsp.group(2).replace("Mb/s", "").replace(" ", ""))
+                break
 
-import tkinter as tk
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import random
+get_rate_from_line()
 
-def update_bar_chart():
-    # 生成两组随机数据
-    new_values1 = [random.randint(10, 50) for _ in range(len(categories))]
-    new_values2 = [random.randint(10, 50) for _ in range(len(categories))]
+# import tkinter as tk
+# from matplotlib.figure import Figure
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# import random
 
-    # 清空原有的图表数据
-    pfframe_ax.clear()
+# def update_bar_chart():
+#     # 生成两组随机数据
+#     new_values1 = [random.randint(10, 50) for _ in range(len(categories))]
+#     new_values2 = [random.randint(10, 50) for _ in range(len(categories))]
 
-    # 绘制两组柱状图，调整第二组柱状图的位置
-    bar_width = 0.1
-    bar_positions = range(len(categories))
+#     # 清空原有的图表数据
+#     pfframe_ax.clear()
 
-    bars1 = pfframe_ax.bar(bar_positions, new_values1, width=bar_width, label='Group 1', align='edge')
-    bars2 = pfframe_ax.bar([i + bar_width for i in bar_positions], new_values2, width=bar_width, label='Group 2', align='edge')
+#     # 绘制两组柱状图，调整第二组柱状图的位置
+#     bar_width = 0.1
+#     bar_positions = range(len(categories))
 
-    # 添加图例
-    pfframe_ax.legend()
+#     bars1 = pfframe_ax.bar(bar_positions, new_values1, width=bar_width, label='Group 1', align='edge')
+#     bars2 = pfframe_ax.bar([i + bar_width for i in bar_positions], new_values2, width=bar_width, label='Group 2', align='edge')
 
-    # 设置横坐标刻度和标签
-    pfframe_ax.set_xticks([i + bar_width/2 for i in bar_positions])
-    pfframe_ax.set_xticklabels(categories)
+#     # 添加图例
+#     pfframe_ax.legend()
 
-    # 在每个柱形上方添加具体值
-    for bar in bars1:
-        yval = bar.get_height()
-        pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
+#     # 设置横坐标刻度和标签
+#     pfframe_ax.set_xticks([i + bar_width/2 for i in bar_positions])
+#     pfframe_ax.set_xticklabels(categories)
 
-    for bar in bars2:
-        yval = bar.get_height()
-        pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
+#     # 在每个柱形上方添加具体值
+#     for bar in bars1:
+#         yval = bar.get_height()
+#         pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
 
-    # 更新绘图区域
-    pfframe_canvas.draw()
+#     for bar in bars2:
+#         yval = bar.get_height()
+#         pfframe_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
 
-    # 在这里加入更新的时间间隔，如果需要的话
-    root.after(1000, update_bar_chart)
+#     # 更新绘图区域
+#     pfframe_canvas.draw()
 
-# 准备柱状图数据
-categories = ["1", "2", "5.5", "6", "9", "11", "12", "18", "24", "36", "48", "54"]
+#     # 在这里加入更新的时间间隔，如果需要的话
+#     root.after(1000, update_bar_chart)
 
-# 创建 tkinter 窗口
-root = tk.Tk()
-root.title("Dynamic Bar Chart Example")
+# # 准备柱状图数据
+# categories = ["1", "2", "5.5", "6", "9", "11", "12", "18", "24", "36", "48", "54"]
 
-# 创建 Figure 和 Axes 对象
-pfframe_fig = Figure(figsize=(6, 4), dpi=100)
-pfframe_ax = pfframe_fig.add_axes([0.1, 0.1, 0.8, 0.8])
+# # 创建 tkinter 窗口
+# root = tk.Tk()
+# root.title("Dynamic Bar Chart Example")
 
-# 将 Matplotlib 图形嵌入到 tkinter 窗口中
-pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=root)
-pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+# # 创建 Figure 和 Axes 对象
+# pfframe_fig = Figure(figsize=(6, 4), dpi=100)
+# pfframe_ax = pfframe_fig.add_axes([0.1, 0.1, 0.8, 0.8])
 
-# 启动动态更新函数
-update_bar_chart()
+# # 将 Matplotlib 图形嵌入到 tkinter 窗口中
+# pfframe_canvas = FigureCanvasTkAgg(pfframe_fig, master=root)
+# pfframe_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-# 启动 tkinter 主循环
-root.mainloop()
+# # 启动动态更新函数
+# update_bar_chart()
+
+# # 启动 tkinter 主循环
+# root.mainloop()

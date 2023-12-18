@@ -344,6 +344,7 @@ class Rshark():
         return False
 
     def rshark_force_exit(self):
+        self.rate_db = {}
         if self.tcpdump_pid > 0:
             print("kill pid: ", self.tcpdump_pid)
             kill_str = "kill -9 " + str(self.tcpdump_pid)
@@ -678,7 +679,7 @@ class Rshark():
     def rshark_set_pshark_cb(self, sub_args):
         self.store_types["pshark"]["arg"] = sub_args
 
-    def rshark_store_addb(self, ta, ra, rssi, dot11_frame_type, retry):
+    def rshark_filter_pmacs(self, ta, ra):
         found = False
         if self.pmacs:
             if ta in self.pmacs:
@@ -689,8 +690,11 @@ class Rshark():
                     found = True
 
             if not found:
-                return
+                return False
 
+        return True
+
+    def rshark_store_addb(self, ta, ra, rssi, dot11_frame_type, retry):
         # print(dot11_frame_type)
         item_tx = {}
         item_tx_rx = {}
@@ -750,6 +754,7 @@ class Rshark():
         rbps = [
             # rmcs
             re.compile(r'\s(\S+\s\Sb/s).*(MCS\s\S)'),
+            re.compile(r'(.*)\s(MCS\s\S)'),
             # rbps
             re.compile(r'(tsft).*\s(\S+\s\Sb/s)')
         ]
@@ -783,6 +788,7 @@ class Rshark():
         rate_value = self.get_rate_from_line(line)
 
         if not rate_value:
+            # print("Unkown rate: ", line)
             return
 
         macs_value = {}
@@ -804,7 +810,7 @@ class Rshark():
             else:
                 macs_macv["cnts"] += 1
 
-            self.rate_db[rate_value] = macs_macv
+            self.rate_db[rate_value][mac_indx] = macs_macv
 
             # print(self.rate_db)
 
@@ -952,10 +958,11 @@ class Rshark():
         }
 
         # BSSID:92:23:b4:1c:8a:a3 DA:02:25:77:74:8e:75 SA:92:23:b4:1c:8a:a3 Probe Response
+        # BSSID:78:60:5b:b9:35:fd DA:78:60:5b:b9:35:fd SA:c2:95:73:97:f4:66 Authentication
+        # BSSID:78:60:5b:b9:35:fd DA:c2:95:73:97:f4:66 SA:78:60:5b:b9:35:fd Assoc Response
         regs["mgmt"] = {
             "ra":[
-                # re.compile(r'(RA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) TA.* Clear-To-Send', re.I),
-                re.compile(r'(DA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) ('+rclass_mgmt_reg+')'),
+                re.compile(r'(DA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}).*('+rclass_mgmt_reg+')'),
             ],
             "ta":[
                 re.compile(r'(SA):(([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}) ('+rclass_mgmt_reg+')'),
@@ -995,6 +1002,10 @@ class Rshark():
             retes = self.rshark_parse_lines(line, rclass_reg_list=rclass_reg_list, rclass_list=rclass_list, rclass_names=rclass_names, regs=regs)
             if not retes:
                 continue
+
+            if not self.rshark_filter_pmacs(retes["ta"],retes["ra"]):
+                continue
+
             # def rshark_store_addb(self, ta, ra, rssi, dot11_frame_type, retry):
             self.rshark_store_addb(retes["ta"], retes["ra"], retes["rssi"], retes["dot11_frame_type"], retes["retry"])
 

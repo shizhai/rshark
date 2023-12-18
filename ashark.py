@@ -239,7 +239,7 @@ class NetworkTestGUI:
     def __init__(self, mframe, pdframe, pfframe):
         self.running = False
         self.parse_on_time = True
-        # self.event_loop = asyncio.get_event_loop()
+        self.event_loop = asyncio.get_event_loop()
         self.client_thread = None
         self.pshark_thread = None
         self.root = mframe
@@ -426,7 +426,7 @@ class NetworkTestGUI:
 
     def update_data(self, d, rate_db):
         # print(d)
-        print(rate_db)
+        # print(rate_db)
         # update xlabel(time)
         if self.pt_pre == 0:
             self.pt_list.append(0)
@@ -520,9 +520,9 @@ class NetworkTestGUI:
         self.update_plot()
 
         prate_frame = self.pfframe["prate_retry_frame"]
-        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", d)
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", rate_db)
         prate_frame = self.pfframe["prate_frame"]
-        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", d)
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", rate_db)
 
     def plot_color_handle(self, method):
         if method == "RESET":
@@ -543,6 +543,9 @@ class NetworkTestGUI:
     def fig_on_scroll_event(self, event):
         zoom_factor = 1.2 if event.step > 0 else 1 / 1.2
         x, y = event.xdata, event.ydata
+        if not x or not y:
+            return
+
         pretry_frame = self.pfframe["pretry_frame"]
         new_xlim = [x - (x - pretry_frame["plot"].get_xlim()[0]) / zoom_factor,
                     x + (pretry_frame["plot"].get_xlim()[1] - x) / zoom_factor]
@@ -690,24 +693,24 @@ class NetworkTestGUI:
         self.pshark_thread.start()
 
     def run_pshark(self):
-        d = {"1":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
-             "6":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
-             "24":{"mac2mac3":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
-             "mcs4":{"mac3mac4":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
-             }
-        while True:
-            cnts = random.randint(0, 10)
-            retry = random.randint(0, 10)
-            for rate in d:
-                for mac in d[rate]:
-                    d[rate][mac]["cnts"] += cnts
-                    d[rate][mac]["retry"] += retry
-                    cnts = random.randint(0, 10)
-                    retry = random.randint(0, 10)
+        # d = {"1":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+        #      "6":{"mac1mac2":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+        #      "24":{"mac2mac3":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+        #      "mcs4":{"mac3mac4":{"cnts": 0, "retry": 0}, "mac2mac1":{"cnts": 0, "retry": 0}},
+        #      }
+        # while True:
+        #     cnts = random.randint(0, 10)
+        #     retry = random.randint(0, 10)
+        #     for rate in d:
+        #         for mac in d[rate]:
+        #             d[rate][mac]["cnts"] += cnts
+        #             d[rate][mac]["retry"] += retry
+        #             cnts = random.randint(0, 10)
+        #             retry = random.randint(0, 10)
 
-            prate_frame = self.pfframe["prate_frame"]
-            self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", d)
-            time.sleep(1)
+        #     prate_frame = self.pfframe["prate_frame"]
+        #     self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", d)
+        #     time.sleep(1)
 
         msgbox_info = self.sw.get_user_input()
         # print("---------------------><", msgbox_info)

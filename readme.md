@@ -31,6 +31,14 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.3.1
+
+> add retry count for each rate
+> 
+> add pkt count for each rate
+> 
+> fix miss mgmt(assoc/auth) frame when pshark on the fly
+
 v3.2.2
 
 > add support to retry counts tendancy chart
