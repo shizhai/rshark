@@ -23,9 +23,9 @@ os_platform = sys.platform.lower()
 
 root = tk.Tk()
 
-gwidth = 1780
+gwidth = 1750
 gheight = 840
-gwidth_min = 530
+gwidth_min = 495
 gheight_min = gheight
 
 IPERF_PATH=None
@@ -78,14 +78,16 @@ class SnifferWin:
         first_info = self.rinfos[0]
         for item in first_info:
             if type(first_info[item]) == list:
-                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                # self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ")
                 self.wrinfo["value" + item] = ttk.Combobox(self.root, width=20)
                 self.wrinfo["value" + item]["value"] = first_info[item]
                 self.wrinfo["value" + item].current(0)
                 if item == self.tirgger_pframe:
                     self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             elif item == self.trigger_item:
-                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                # self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ")
                 self.wrinfo["value" + item] = ttk.Combobox(self.root, width=20)
                 info_trigger_items = []
                 for item_each in self.rinfos:
@@ -95,7 +97,8 @@ class SnifferWin:
                 self.wrinfo["value" + item].current(0)
                 self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_info)
             else:
-                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                # self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ", width=20)
+                self.wrinfo["label" + item] = tk.Label(self.root, text=item + ": ")
                 self.wrinfo["value" + item] = tk.Entry(self.root, width=20)
                 self.wrinfo["value" + item].insert(0, first_info[item])
 

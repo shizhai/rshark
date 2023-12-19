@@ -142,12 +142,14 @@ class httpFThread(threading.Thread):
     def __init__(self, name, server_address, dir):
         super(httpFThread, self).__init__()
         self.server_address = server_address
+        self.dir = dir
+        self.name = name
 
     def run(self):
         while True:
             try:
                 # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
-                self.httpfd = http.server.HTTPServer(self.server_address, partial(http.server.SimpleHTTPRequestHandler, directory=dir))
+                self.httpfd = http.server.HTTPServer(self.server_address, partial(http.server.SimpleHTTPRequestHandler, directory=self.dir))
                 # 循环等待客户端请求
                 self.httpfd.serve_forever()
             except Exception as e:
@@ -295,9 +297,9 @@ class Asrd():
             args["port"] = lhost["port"] if not "port" in args else args["port"]
 
         # filter mac splited with ,
-        if "macs" in args:
-            smacs = args["macs"]
-            args["macs"] = smacs.replace(" ", "").split(",")
+        # if "macs" in args:
+        #     smacs = args["macs"]
+        #     args["macs"] = smacs.replace(" ", "").split(",")
 
         self.asrd_start_sniffer_thread(args)
 

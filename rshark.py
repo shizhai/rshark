@@ -5,8 +5,6 @@ import re
 import threading
 import time
 import sys
-import signal
-import argparse
 import queue
 import os
 import subprocess
@@ -15,12 +13,6 @@ import datetime
 
 from paramiko import SSHClient
 from paramiko import AutoAddPolicy
-
-# from pexpect import popen_spawn
-# from pyshark.capture.pipe_capture import PipeCapture
-
-import rshark_msgbox
-# from tkinter import Tk
 
 display_realtime = True
 pshark_realtime = True
@@ -348,10 +340,16 @@ class Rshark():
         if self.tcpdump_pid > 0:
             print("kill pid: ", self.tcpdump_pid)
             kill_str = "kill -9 " + str(self.tcpdump_pid)
-            self.ssh.exec_command(kill_str)
+            try:
+                self.ssh.exec_command(kill_str)
+            except:
+                pass
 
         if self.pipc:
-            self.pipc.close()
+            try:
+                self.pipc.close()
+            except:
+                pass
             print("Close pipe capture done!")
 
         print("Close remote process done!")
@@ -363,14 +361,16 @@ class Rshark():
             finally:
                 print("Close {} process done!".format(item))
 
-        # print("Close shark eventloop done!")
-        # self.new_loop.stop()
-        # self.new_loop.close()
-
-        self.exit_event.set()
-        print("Set exit event done!")
-        self.ssh.close()
-        print("Close ssh done!")
+        try:
+            self.exit_event.set()
+            print("Set exit event done!")
+        except:
+            pass
+        try:
+            self.ssh.close()
+            print("Close ssh done!")
+        except:
+            pass
 
     def __del__(self):
         self.ssh.close()
@@ -1174,121 +1174,3 @@ class Rshark():
 def rshark_conf_init(conf):
     if conf and os.path.exists(conf):
         rshark_from_conf(conf, None)
-        #print(conf_hosts)
-
-# if __name__ == "__main__":
-#     #https://docs.python.org/zh-cn/3/library/argparse.html
-#     parse = argparse.ArgumentParser(description="Start sniffer with cli, target(openwrt) configure file can be store to openwrt/wireless or use inner static file")
-#     parse.add_argument("--conf", help="path to the config file", required=False, type=str)
-
-#     parse.add_argument("-u", "--user", help="remote sniffer host user name to login", required=False, type=str)
-#     parse.add_argument("-p", "--password", help="remote sniffer host password to login", required=False, type=str)
-#     parse.add_argument("-i", "--interface", help="wireless interface of remote sniffer host to use", required=False, type=str)
-#     parse.add_argument("-c", "--channel", help="wireless channel of remote sniffer host to use", required=False, type=int)
-#     parse.add_argument("--ip", help="remote sniffer host ip address", required=False, type=str)
-#     parse.add_argument("--port", help="remote sniffer host ssh port", required=False, default="22", type=str)
-#     parse.add_argument("--type", help="the type of remote target host, default: openwrt", choices=["openwrt", "ubuntu"], required=False, type=str)
-#     parse.add_argument("--dst", help="where to store the sniffer log, show start with: local://yourpath OR wireshark://.", default="wireshark://.", required=False, type=str)
-#     parse.add_argument("--macs", help="mac list with \',\' splited to filter the target", required=False, type=str)
-#     parse.add_argument("--pmacs", help="mac list with \',\' splited to parse the target", required=False, type=str)
-#     parse.add_argument("--timeout", help="time to wait for the remote host reponse(10s)", required=False, default=10, type=int)
-
-#     args = parse.parse_args()
-#     # print(args)
-
-#     lhost = {}
-
-#     # if we support msgbox now, so comment this
-#     if not use_msgbox and not (args.ip and args.conf):
-#         if os.path.exists("./clients"):
-#             args.conf = "./clients"
-#             print("no parameter input but find local conf file clients, use it!")
-#         else:
-#             print("ERROR, Miss some parameters!")
-#             # os.kill(os.getpid(), signal.SIGABRT)
-#             exit_sig(None, None)
-
-#     if args.conf and os.path.exists(args.conf):
-#         rshark_from_conf(args.conf, None)
-#         # print(conf_hosts)
-
-#     if not args.ip:
-#         if not args.conf:
-#             if not use_msgbox:
-#                 print("ERROR! remote ip address required and not configure file found!")
-#             else:
-#                 hosts_out = []
-#                 rshark_from_conf("./clients", hosts_out=hosts_out)
-#                 # print(hosts_out)
-#                 # msgbox_info = rshark_msgbox_info() 
-#                 rinfos = []
-#                 for item_host in hosts_out:
-#                     rinfo = {}
-#                     rinfo["user"] = item_host["user"]
-#                     rinfo["password"] = item_host["password"]
-#                     rinfo["port"] = item_host["port"]
-#                     rinfo["ip"] = item_host["ip"]
-#                     rinfo["interface"] = item_host["interface"]
-#                     rinfo["type"] = item_host["type"]
-#                     rinfo["channel"] = list(range(1, 14))
-#                     rinfo["stores"] = ["wireshark://.", "local://.", "pshark://."]
-#                     rinfos.append(rinfo)
-#                 #rinfo = {"user": "root", "password": "12345678", "ip": "192.168.8.1", "port": "22", "channel": list(range(1, 13)), "interface": "mon1",
-#                 #         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
-
-#                 #rinfo = {"user": "root", "password": "12345678", "ip": "10.17.7.28", "port": "22", "channel": list(range(1, 13)), "interface": "wlan0mon",
-#                 #         "type": ["openwrt", "ubuntu"], "stores":["wireshark://.", "local://.", "pshark://."]}
-#                 #print(rinfos)
-#                 msgbox_info = rshark_msgbox.rshark_rmsgbox(rinfos)
-#                 args.type = msgbox_info["type"]
-#                 args.user = msgbox_info["user"]
-#                 args.password = msgbox_info["password"]
-#                 args.ip = msgbox_info["ip"]
-#                 args.interface = msgbox_info["interface"]
-#                 args.channel = msgbox_info["channel"]
-#                 args.dst = msgbox_info["stores"]
-#                 args.pmacs = msgbox_info["pmacs"]
-#         else:
-#             for item in conf_hosts:
-#                 if item["usetunnel"]:
-#                     args.ip = item["ip"]
-#                     break
-
-#             if not args.ip:
-#                 print("ERROR! remote ip address required and not configure file found!")
-#             else:
-#                 print("WARNING! remote ip address required, use first one {}!".format(args.ip))
-
-#     if not (args.type and args.user and args.password and args.dst and args.interface and args.channel):
-#         lhost = rshark_lookup_hosts(args.ip, False, True)
-#         if not lhost:
-#             print("ERROR, Miss some parameters!")
-#             # os.kill(os.getpid(), signal.SIGABRT)
-#             exit_sig(None, None)
-
-#     args.type = lhost["type"] if not args.type else args.type
-#     args.user = lhost["user"] if not args.user else args.user
-#     args.password = lhost["password"] if not args.password else args.password
-#     args.interface = lhost["interface"][0] if not args.interface else args.interface
-#     args.channel = lhost["channel"] if not args.channel else args.channel
-#     args.dst = lhost["dst"] if not args.dst else args.dst
-
-#     shark = Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, args.pmacs)
-#     # record runing device
-#     # cli_running = True
-#     # cli_running_ip = args.ip
-#     # cli_running_intf = args.interface
-#     # if rshark_check_running(args.ip, args.interface):
-#         # sys.exit()
-
-#     signal.signal(signal.SIGINT, exit_sig)
-#     signal.signal(signal.SIGTERM, exit_sig)
-#     signal.signal(signal.SIGABRT, exit_sig)
-#     # signal.signSIGABRTal(signal.SIGKILL, exit_sig)
-
-#     shark.rshark_sniffer()
-
-#     #shark.rshark_sniffer_dir(args.user, args.ip, args.port)
-#     #rshark_update_key(ip, port, user, passwd, timeout)
-#     #rshark_sniffer(user, ip, port, None)
-#     #threading.join(th)
