@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys
+import time
 import subprocess
 import threading
 import json
@@ -33,7 +33,7 @@ def asrd_s2h_write(data):
 
 # recv: host<--http
 def asrd_h2s_read():
-    return msg_queue["h2s"].get(block=True, timeout=120)
+    return msg_queue["h2s"].get(block=True, timeout=1)
 
 # recv: http<--host
 def asrd_s2h_read():
@@ -127,16 +127,14 @@ class httpThread(threading.Thread):
 
     def run(self):
         while True:
+            # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
+            self.httpd = http.server.HTTPServer(self.server_address, RequestHandlerImpl)
+            # 循环等待客户端请求
             try:
-                # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
-                self.httpd = http.server.HTTPServer(self.server_address, RequestHandlerImpl)
-                # 循环等待客户端请求
                 self.httpd.serve_forever()
-            except Exception as e:
-                print("Http Server Exception{}".format(e))
-            finally:
-                if self.httpd:
-                    self.httpd.server_close()
+            except Exception:
+                self.httpd.server_close()
+                break
 
 class httpFThread(threading.Thread):
     def __init__(self, name, server_address, dir):
@@ -147,16 +145,14 @@ class httpFThread(threading.Thread):
 
     def run(self):
         while True:
+            # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
+            self.httpfd = http.server.HTTPServer(self.server_address, partial(http.server.SimpleHTTPRequestHandler, directory=self.dir))
+            # 循环等待客户端请求
             try:
-                # 创建一个 HTTP 服务器（Web服务器）, 指定绑定的地址/端口 和 请求处理器
-                self.httpfd = http.server.HTTPServer(self.server_address, partial(http.server.SimpleHTTPRequestHandler, directory=self.dir))
-                # 循环等待客户端请求
                 self.httpfd.serve_forever()
-            except Exception as e:
-                print("Http File Server Exception{}".format(e))
-            finally:
-                if self.httpfd:
-                    self.httpfd.server_close()
+            except Exception:
+                self.httpfd.server_close()
+                break
 
 class SrvThread(threading.Thread):
     def __init__(self, name, args):
@@ -344,6 +340,8 @@ class Asrd():
                 args = asrd_h2s_read()
             except queue.Empty:
                 continue
+            except KeyboardInterrupt:
+                return
             print(args)
             if "cmd" in args and args["cmd"] in self.queues:
                 self.queues[args["cmd"]](args)
@@ -375,10 +373,18 @@ if __name__ == "__main__":
 
         A.asrd_run()
 
-        for r in A.threads:
-            r["id"].join()
+        threads_list = [ t["id"] for t in A.threads ]
+        threads_list.append(A.httpd)
+        threads_list.append(A.httpfd)
 
-        A.httpd.join()
-        A.httpfd.join()
+        while True:
+            for r in threads_list:
+                if not r.is_alive():
+                    raise KeyboardInterrupt
+                else:
+                    time.sleep(0.2)
+
     except KeyboardInterrupt:
-        sys.exit()
+        A.httpd.httpd.server_close()
+        A.httpfd.httpfd.server_close()
+        print("Exit...")

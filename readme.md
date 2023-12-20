@@ -31,6 +31,10 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.3.5
+
+> fix can't exit asrd by press keyboard ctrl+c
+
 v3.3.4
 
 > fix mac filter fail for asrd: http://10.17.7.29:8000/?cmd=start&ip=192.168.8.1&interface=mon1&macs=d4:da:21:5c:e6:b6,60:55:f9:f7:2a:88
