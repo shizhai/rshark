@@ -28,6 +28,8 @@ gheight = 840
 gwidth_min = 495
 gheight_min = gheight
 
+clients_file = "./clients"
+
 IPERF_PATH=None
 if os_platform.startswith("win"):
     IPERF_PATH="./files/iperf/iperf.exe"
@@ -72,6 +74,11 @@ class NetworkTestGUI:
         self.rows = 0
         self.data_boxs={}
 
+        self.widget_bg = "lightblue"
+        self.widget_width = 20
+        self.widget_padx = 1
+        self.widgets_all = []
+
         self.ptitle_fields = {"data": 0, "mgmt": 1, "ack": 2, "rts": 3, "cts": 4}
         self.psub_fields = ["rssi", "cnt", "retry"]
 
@@ -79,15 +86,18 @@ class NetworkTestGUI:
         self.stop_event = threading.Event()
 
         self.content_label = ttk.Label(self.mframe, text="/ " * 20 + "Iperf Client Info" + " /" * 20, background="lightblue")
-        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=5, pady=0, sticky="we")
+        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=0, sticky="we")
+        self.widgets_all.append(self.content_label)
         self.rows = self.rows + 1
 
         # IP 输入框和标签
         self.ip_label = ttk.Label(self.mframe, text="IP Address:")
-        self.ip_label.grid(row=self.rows, column=0, padx=5, pady=0, sticky="e")
-        self.ip_entry = ttk.Entry(self.mframe)
+        self.ip_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=0, sticky="e")
+        self.widgets_all.append(self.ip_label)
+        self.ip_entry = ttk.Entry(self.mframe, width=self.widget_width)
         self.ip_entry.insert(0, "192.168.1.102")
-        self.ip_entry.grid(row=self.rows, column=1, padx=5, pady=0, sticky="w")
+        self.ip_entry.grid(row=self.rows, column=1, padx=self.widget_padx, pady=0, sticky="w")
+        self.widgets_all.append(self.ip_entry)
         self.rows = self.rows + 1
 
         self.pt_pre = 0
@@ -105,43 +115,53 @@ class NetworkTestGUI:
 
         # Port 输入框和标签
         self.port_label = ttk.Label(self.mframe, text="Port:")
-        self.port_label.grid(row=self.rows, column=0, padx=5, pady=5, sticky="e")
-        self.port_entry = ttk.Entry(self.mframe)
+        self.port_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="e")
+        self.widgets_all.append(self.port_label)
+        self.port_entry = ttk.Entry(self.mframe, width=self.widget_width)
         self.port_entry.insert(0, "5001")
-        self.port_entry.grid(row=self.rows, column=1, padx=5, pady=5, sticky="w")
+        self.port_entry.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="w")
+        self.widgets_all.append(self.port_entry)
         self.rows = self.rows + 1
 
         # Protocol 输入框和标签
         self.protocol_label = ttk.Label(self.mframe, text="Protocol:")
-        self.protocol_label.grid(row=self.rows, column=0, padx=5, pady=5, sticky="e")
+        self.protocol_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="e")
+        self.widgets_all.append(self.protocol_label)
         self.protocol_var = tk.StringVar()
         self.protocol_var.set("UDP")
         self.protocol_menu = ttk.OptionMenu(self.mframe, self.protocol_var, "UDP", "TCP")
-        self.protocol_menu.grid(row=self.rows, column=1, padx=5, pady=5, sticky="w")
+        self.protocol_menu.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="w")
+        self.widgets_all.append(self.protocol_menu)
         self.rows = self.rows + 1
 
         # 发送速率选择
         self.rate_label = ttk.Label(self.mframe, text="Rate:")
-        self.rate_label.grid(row=self.rows, column=0, padx=5, pady=5, sticky="e")
-        self.rate_select = ttk.Combobox(self.mframe)
+        self.rate_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="e")
+        self.widgets_all.append(self.rate_label)
+        self.rate_select = ttk.Combobox(self.mframe, width=self.widget_width - 2)
         self.rate_select["value"] = [ str(v) + " Mbps" for v in range(5, 80, 5) ]
         self.rate_select.current(4)
-        self.rate_select.grid(row=self.rows, column=1, padx=5, pady=5, sticky="w")
+        self.rate_select.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="w")
+        self.widgets_all.append(self.rate_select)
         self.rows = self.rows + 1
-        # self.rate_select.bind('<<ComboboxSelected>>', self.trigger_show_mac_button)
 
         self.check_box_enable_iperf = tk.IntVar()
         self.check_box_enable_iperf_w = ttk.Checkbutton(self.mframe, text = "Enable Iperf Client",
-                                                       variable = self.check_box_enable_iperf, onvalue = 1, offvalue = 0, width = 20)
-        self.check_box_enable_iperf_w.grid(row=self.rows, column=1, padx=5, pady=5, sticky="we")
+                                                       variable = self.check_box_enable_iperf, onvalue = 1, offvalue = 0)
+                                                    #    variable = self.check_box_enable_iperf, onvalue = 1, offvalue = 0, width = 20)
+        self.check_box_enable_iperf_w.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="we")
+        self.widgets_all.append(self.check_box_enable_iperf_w)
         self.rows = self.rows + 1
 
         self.content_label = ttk.Label(self.mframe, text="/ " * 20 + "Sniffer Info" + " /" * 20, background="lightblue")
-        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=5, pady=5, sticky="we")
+        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=5, sticky="we")
+        self.widgets_all.append(self.content_label)
         self.rows = self.rows + 1
 
+        self.upmacs = {}
+
         hosts_out = []
-        rshark.rshark_from_conf("./clients", hosts_out=hosts_out)
+        rshark.rshark_from_conf(clients_file, hosts_out=hosts_out)
         # print(hosts_out)
         # msgbox_info = rshark_msgbox_info() 
         self.rinfos = []
@@ -159,6 +179,7 @@ class NetworkTestGUI:
                 rinfo["stores"] = ["wireshark://.", "local://./", "pshark://."]
             else:
                 rinfo["stores"] = ["wireshark://.", "local://./"]
+            self.upmacs[rinfo["ip"]] = item_host["upmacs"]
             self.rinfos.append(rinfo)
 
         self.wrinfo = {}
@@ -168,26 +189,24 @@ class NetworkTestGUI:
         self.mac_entry_start_row = 0
         self.mac_entry_diff_rows = 3      # max 3 mac filters
         self.mac_entries = []
+        self.mac_entry_pair = []
         self.pmacs = {}
         self.ptitles = {}
         self.psubs = {}
 
-        # self.sw = SnifferWin(self.mframe, self.pdframe, "ip", "stores", self.rows, rinfos)
-        # print("cur rows {}, {}".format(self.rows, self.sw.rows))
         first_info = self.rinfos[0]
         for item in first_info:
             if type(first_info[item]) == list:
-                # self.wrinfo["label" + item] = tk.Label(self.mframe, text=item + ": ", width=20)
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
-                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=20)
+                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width - 2)
                 self.wrinfo["value" + item]["value"] = first_info[item]
-                self.wrinfo["value" + item].current(0)
+                if len(first_info[item]) > 0:
+                    self.wrinfo["value" + item].current(0)
                 if item == self.tirgger_pframe:
                     self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             elif item == self.trigger_item:
-                # self.wrinfo["label" + item] = tk.Label(self.mframe, text=item + ": ", width=20)
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
-                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=20)
+                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width - 2)
                 info_trigger_items = []
                 for item_each in self.rinfos:
                     info_trigger_items.append(item_each[self.trigger_item])
@@ -196,54 +215,82 @@ class NetworkTestGUI:
                 self.wrinfo["value" + item].current(0)
                 self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_info)
             else:
-                # self.wrinfo["label" + item] = tk.Label(self.mframe, text=item + ": ", width=20)
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
-                self.wrinfo["value" + item] = ttk.Entry(self.mframe, width=20)
+                self.wrinfo["value" + item] = ttk.Entry(self.mframe, width=self.widget_width)
                 self.wrinfo["value" + item].insert(0, first_info[item])
 
-            self.wrinfo["label" + item].grid(row=self.rows, column=0, sticky="e", padx=10, pady=5)
-            self.wrinfo["value" + item].grid(row=self.rows, column=1, sticky="w", padx=10, pady=5)
-            _hide = ttk.Label(self.mframe, text="", width=20)
-            _hide.grid(row=len(self.mac_entries) + self.rows, column=2, sticky="w", padx=10, pady=5)
+            self.wrinfo["label" + item].grid(row=self.rows, column=0, sticky="e", padx=self.widget_padx, pady=5)
+            self.widgets_all.append(self.wrinfo["label" + item])
+            self.wrinfo["value" + item].grid(row=self.rows, column=1, sticky="w", padx=self.widget_padx, pady=5)
+            self.widgets_all.append(self.wrinfo["value" + item])
+            _hide = ttk.Label(self.mframe, text="")
+            _hide.grid(row=len(self.mac_entries) + self.rows, column=2, sticky="w", padx=self.widget_padx, pady=5)
+            self.widgets_all.append(_hide)
             self.rows = self.rows + 1
 
         # for spaces line to add mac filter with max lines == 3
         self.mac_entry_start_row = self.rows + 1
 
         # 添加 "添加MAC地址" 按钮
-        self.add_mac_button = ttk.Button(self.mframe, text="Add MAC Group", command=self.add_mac_entry, width=15)
-        self.add_mac_button.grid(row=self.rows, column=0, padx=10, pady=5, sticky="we")
+        self.add_mac_button = ttk.Button(self.mframe, text="Add MAC Group", command=self.add_mac_entry)
+        self.add_mac_button.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="we")
+        self.add_mac_entry_default()
+        self.widgets_all.append(self.add_mac_button)
 
-        # self.add_mac_button.grid_forget()
-        # hide_mac_label1 = ttk.Label(self.mframe, text="Addr.A", width=20, background="lightblue")
-        hide_mac_label1 = ttk.Label(self.mframe, text="Addr.A")
-        hide_mac_label1.grid(row=self.rows, column=1, pady=5)#, sticky="we")
-        hide_mac_label2 = ttk.Label(self.mframe, text="Addr.B")
-        hide_mac_label2.grid(row=self.rows, column=2, pady=5)#, sticky="we")
+        self.hide_mac_label1 = ttk.Label(self.mframe, text="Addr.A")
+        self.widgets_all.append(self.hide_mac_label1)
+        self.hide_mac_label2 = ttk.Label(self.mframe, text="Addr.B")
+        self.widgets_all.append(self.hide_mac_label2)
 
         self.rows += 1
         self.rows += self.mac_entry_diff_rows
 
         # self.rows = self.rows + self.sw.rows
 
-        self.client_button = ttk.Button(self.mframe, text="Start", command=self.start_run, width=15)
-        self.client_button.grid(row=self.rows, column=0, padx=10, pady = 5, sticky="we")
-        self.rows = self.rows + 1
+        self.client_button = ttk.Button(self.mframe, text="Start", command=self.start_run)
+        self.client_button.grid(row=self.rows, column=0, padx=self.widget_padx, pady = 5, sticky="we")
+        self.widgets_all.append(self.client_button)
 
         # 停止按钮
-        self.stop_button = ttk.Button(self.mframe, text="Stop", command=self.stop, width=15)
-        self.stop_button.grid(row=self.rows, column=0, padx=10, pady=5, sticky="we")
+        self.stop_button = ttk.Button(self.mframe, text="Stop", command=self.stop)
+        self.stop_button.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="we")
+        self.widgets_all.append(self.stop_button)
+
+        # 保存按钮
+        self.save_button = ttk.Button(self.mframe, text="Save", command=self.save)
+        self.save_button.grid(row=self.rows, column=2, padx=self.widget_padx, pady=5, sticky="we")
+        self.widgets_all.append(self.save_button)
+
         self.rows = self.rows + 1
 
         # print("cur rows {}".format(self.rows))
         # 统计
         stats_list = ["tx_rate", "tx_cnts", "running_time"]
         self.stats = self.gen_stats_menu_list(stats_list)
+
         self.mframe.update()
-        self.mframe.update_idletasks()
+        self.pfframe.update()
+        self.pdframe.update()
+
+        # for itx in self.widgets_all:
+        #     # itx.config(width=self.widget_width, background=self.widget_bg)
+        #     print(itx.winfo_width())
 
         # create pdframe
         self.create_pdframe_title()
+
+        root.update()
+
+    def add_mac_entry_default(self):
+        info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
+        for rinfo in self.rinfos:
+            if rinfo[self.trigger_item] == info_trigger_value:
+                if self.upmacs[info_trigger_value]:
+                    for upmac in self.upmacs[info_trigger_value]:
+                        upmacx = upmac.split("_")
+                        me = self.add_mac_entry()
+                        for upmacn in upmacx:
+                            me[upmacx.index(upmacn)].insert(0, upmacn)
 
     def trigger_update_info(self, event):
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
@@ -329,24 +376,32 @@ class NetworkTestGUI:
                     event.widget.grid_forget()
                     item["maca"].grid_forget()
                     item["macb"].grid_forget()
-                    # self.rows = self.rows - 1
+                    self.mac_entry_pair.remove([item["maca", "macb"]])
                     self.mac_entries.remove(item)
                     self.add_mac_button.configure(state="active")
-                    return
+                    break
+
+        if len(self.mac_entries) == 0:
+            self.hide_mac_label1.grid_forget()
+            self.hide_mac_label2.grid_forget()
 
     def add_mac_entry(self):
+        self.hide_mac_label1.grid(row=self.mac_entry_start_row - 1, column=1, pady=5)#, sticky="we")
+        self.hide_mac_label2.grid(row=self.mac_entry_start_row - 1, column=2, pady=5)#, sticky="we")
         remove_mac_button = ttk.Button(self.mframe, text="X", width=2)
         # remove_mac_button.bind("<Button-1>", self.remove_mac_entry)
         remove_mac_button.bind("<ButtonRelease>", self.remove_mac_entry)
-        remove_mac_button.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=0, padx=10, pady=5, sticky="e")
+        remove_mac_button.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=0, padx=self.widget_padx, pady=5, sticky="e")
 
-        mac_entry1 = ttk.Entry(self.mframe, width=20)
-        mac_entry1.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=1, padx=10, pady=5,sticky="we")
+        # mac_entry1 = ttk.Entry(self.mframe, width=20)
+        mac_entry1 = ttk.Entry(self.mframe)
+        mac_entry1.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=1, padx=self.widget_padx, pady=5,sticky="we")
         # mac_entry1.insert(0, "FF:FF:FF:FF:FF:FF")
         mac_entry1.insert(0, "c2:95:73:53:a5:5e")
         HoverInfo(mac_entry1, "'-' means any mac")
-        mac_entry2 = ttk.Entry(self.mframe, width=20)
-        mac_entry2.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=2, padx=10, pady=5, sticky="we")
+        # mac_entry2 = ttk.Entry(self.mframe, width=20)
+        mac_entry2 = ttk.Entry(self.mframe)
+        mac_entry2.grid(row=len(self.mac_entries) + self.mac_entry_start_row, column=2, padx=self.widget_padx, pady=5, sticky="we")
         # mac_entry2.insert(0, "FF:FF:FF:FF:FF:FF")
         mac_entry2.insert(0, "-")
         HoverInfo(mac_entry2, "'-' means any mac")
@@ -356,7 +411,19 @@ class NetworkTestGUI:
         if (len(self.mac_entries) >= self.mac_entry_diff_rows):
             print("Max filter macs group added!")
             self.add_mac_button.configure(state="disabled")
-            return
+
+        mp = [mac_entry1, mac_entry2]
+
+        self.mac_entry_pair.append(mp)
+
+        return mp
+
+    def save(self):
+        uinfo = self.get_user_input()
+        info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
+        print(uinfo)
+        print(info_trigger_value)
+        # with open(clients_file, "r") as f:
 
     def get_user_input(self):
         found = False
@@ -405,13 +472,15 @@ class NetworkTestGUI:
 
     def gen_stats_menu_list(self, stats_list):
         stats = {}
+        columc = 0
         for item in stats_list:
             # 创建一个 StringVar 用于绑定 Entry 的内容
             stats[item] = tk.StringVar()
             stats[item].set("")
-            entry_item = ttk.Entry(self.mframe, textvariable=stats[item], state="readonly", width=15)
-            entry_item.grid(row=self.rows, column=0, padx=10, pady=5, sticky="we")
-            self.rows = self.rows + 1
+            entry_item = ttk.Entry(self.mframe, textvariable=stats[item], state="readonly")
+            entry_item.grid(row=self.rows, column=columc, padx=self.widget_padx, pady=5,  sticky="we")
+            self.widgets_all.append(entry_item)
+            columc += 1
 
         return stats
 
@@ -870,7 +939,8 @@ def rshark_main():
 
     root.title("Wi-Fi T/RX Analysis")
 
-    mframe = ttk.Frame(master=root, borderwidth=1, relief="solid", height=gheight)
+    # mframe = ttk.Frame(master=root, borderwidth=0, relief="solid", height=gheight, border=0)
+    mframe = ttk.Frame(master=root, borderwidth=0, height=gheight, border=0)
     mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
 
     # parse data frame
@@ -977,6 +1047,10 @@ def rshark_main():
                      },
                      }
 
+    notebook.add(pretry_frame, text="RetryTrend")
+    notebook.add(prate_cnt_frame, text="RateCounts")
+    notebook.add(prate_retry_frame, text="RateRetry")
+
     ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pframe_info)
 
     pretry_frame_fig.canvas.mpl_connect('scroll_event', ntg.fig_on_scroll_event)
@@ -984,9 +1058,7 @@ def rshark_main():
     # 在鼠标悬停时显示坐标值
     # mplcursors.cursor(hover=True)
 
-    notebook.add(pretry_frame, text="RetryTrend")
-    notebook.add(prate_cnt_frame, text="RateCounts")
-    notebook.add(prate_retry_frame, text="RateRetry")
+
 
     # ntg.update_plot()
     rshark_toggle_pframe(pdframe_interior_frame, False)
