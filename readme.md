@@ -31,6 +31,12 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.3.6
+
+> fix winget resize issues
+> 
+> use win style align to windows
+
 v3.3.5
 
 > fix can't exit asrd by press keyboard ctrl+c
