@@ -86,8 +86,9 @@ class NetworkTestGUI:
         # 停止标志
         self.stop_event = threading.Event()
 
-        self.content_label = ttk.Label(self.mframe, text="/ " * 20 + "Iperf Client Info" + " /" * 20, background="lightblue")
-        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=0, sticky="we")
+        # self.content_label = ttk.Label(self.mframe, text="  " * 20 + "Iperf Client Info" + "  " * 20, background="lightblue")
+        self.content_label = ttk.Label(self.mframe, text="Iperf Client Info", background="lightblue", justify="center", anchor="center")
+        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=5, sticky="we")
         self.widgets_all.append(self.content_label)
         self.rows = self.rows + 1
 
@@ -154,8 +155,8 @@ class NetworkTestGUI:
         self.widgets_all.append(self.check_box_enable_iperf_w)
         self.rows = self.rows + 1
 
-        self.content_label = ttk.Label(self.mframe, text="/ " * 20 + "Sniffer Info" + " /" * 20, background="lightblue")
-        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=5, sticky="we")
+        self.content_label = ttk.Label(self.mframe, text="Sniffer Info", background="lightblue", anchor="center", justify="center")
+        self.content_label.grid(row=self.rows, column=0, columnspan=3, padx=self.widget_padx, pady=5, sticky="nsew")
         self.widgets_all.append(self.content_label)
         self.rows = self.rows + 1
 
@@ -353,21 +354,9 @@ class NetworkTestGUI:
         
         info_trigger_value = self.wrinfo["value" + self.tirgger_pframe].get()
         if info_trigger_value.startswith("pshark://"):
-            # print(info_trigger_value)
-            rshark_toggle_pframe(self.pdframe, True)
-            # self.ptitles["t_value_menu"].grid(row=self.pframe_start_row, column=self.pframe_start_col, rowspan=2, padx=1, pady=0, sticky="wens")
-            # for ptitle in self.ptitle_fields:
-            #     self.ptitles["t_value"+ptitle].grid(row=self.pframe_start_row,
-            #                                    column=self.title_sub_start_column + self.ptitle_fields[ptitle] * len(self.psub_fields),
-            #                                    columnspan=len(self.psub_fields),
-            #                                    padx=1, pady=0, sticky="we")
-
-            # for idx in range(0, len(self.ptitle_fields), 1):
-            #     for psub in self.psub_fields:
-            #         column=self.title_sub_start_column + self.psub_fields.index(psub) + idx * len(self.psub_fields)
-            #         self.psubs["t_value"+psub+str(idx)].grid(row=self.data_rows, column=column, padx=1, pady=0, sticky="we")
+            rshark_toggle_pframe(self.pdframe, self.pfframe, True)
         else:
-            rshark_toggle_pframe(self.pdframe, False)
+            rshark_toggle_pframe(self.pdframe, self.pfframe, False)
 
     def remove_mac_entry(self, event):
         for item in self.mac_entries:
@@ -956,29 +945,36 @@ class NetTestClient:
             print(f"Error: {e}")
         # messagebox.showerror("Connection Error", "Failed to connect to the server. Make sure the server is running.")
 
-def rshark_toggle_pframe(pframe, pshow=False):
+def rshark_toggle_pframe(pframe, pfframes, pshow=False):
     parent = pframe.winfo_parent()
     parent = root.nametowidget(parent).winfo_parent()
     parent = root.nametowidget(parent)
     if pshow:
-        # root.maxsize(width=gwidth, height=gheight + 10) 
-        # root.minsize(width=gwidth, height=gheight + 10)
         parent.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
-        # root.geometry(str(gwidth)+"x"+str(gheight))
-        # print("this is set show->", parent)
-
-        # root.maxsize(width=gwidth, height=gheight + 10) 
-        # root.minsize(width=gwidth, height=gheight + 10)
         notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        pfframes["pretry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+        pfframes["prate_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+        pfframes["prate_retry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        notebook.add(pfframes["pretry_frame"]["frame"], text="RetryTrend")
+        notebook.add(pfframes["prate_frame"]["frame"], text="RateCounts")
+        notebook.add(pfframes["prate_retry_frame"]["frame"], text="RateRetry")
+
     else:
-        # print("this is set disshow->", parent)
-        # root.maxsize(width=gwidth_min, height=gheight_min + 10) 
-        # root.minsize(width=gwidth_min, height=gheight_min + 10)
         parent.grid_forget()
+
+        pfframes["pretry_frame"]["frame"].grid_forget()
+        pfframes["prate_frame"]["frame"].grid_forget()
+        pfframes["prate_retry_frame"]["frame"].grid_forget()
+
         notebook.grid_forget()
 
-    root.update()
     pframe.update()
+    pfframes["pretry_frame"]["frame"].update()
+    pfframes["prate_frame"]["frame"].update()
+    pfframes["prate_retry_frame"]["frame"].update()
+    root.update()
 
 def rshark_main():
     right_left_size = gwidth - 570
@@ -995,25 +991,31 @@ def rshark_main():
     mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
 
     # parse data frame
-    # pdframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
     pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
-    pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+    # pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+    pdframe.grid_forget()
 
     # 必须放在frame声明grid之前，否则notebook会覆盖frame
     # notebook = ttk.Notebook(root)
-    notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    # notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # parse frame(parse retry frame, parse rate cnt frame, parse rate retry frame)
     # parse retry frame
     pretry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    # pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # parse rate cnt frame
     prate_cnt_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    # prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # parse rate retry frame
     prate_retry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    # prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+    pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+    notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+    prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
     prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # -----------------------------------------pdframe------------------------------------------
@@ -1109,10 +1111,7 @@ def rshark_main():
     # 在鼠标悬停时显示坐标值
     # mplcursors.cursor(hover=True)
 
-
-
-    # ntg.update_plot()
-    rshark_toggle_pframe(pdframe_interior_frame, False)
+    rshark_toggle_pframe(pdframe_interior_frame, pframe_info,  False)
 
     root.mainloop()
 
