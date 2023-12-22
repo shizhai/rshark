@@ -1,4 +1,5 @@
 import os
+import re
 import argparse
 from math import ceil
 import copy
@@ -234,13 +235,14 @@ class NetworkTestGUI:
         # 添加 "添加MAC地址" 按钮
         self.add_mac_button = ttk.Button(self.mframe, text="Add MAC Group", command=self.add_mac_entry)
         self.add_mac_button.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="we")
-        self.add_mac_entry_default()
         self.widgets_all.append(self.add_mac_button)
 
         self.hide_mac_label1 = ttk.Label(self.mframe, text="Addr.A")
         self.widgets_all.append(self.hide_mac_label1)
         self.hide_mac_label2 = ttk.Label(self.mframe, text="Addr.B")
         self.widgets_all.append(self.hide_mac_label2)
+
+        self.add_mac_entry_default()
 
         self.rows += 1
         self.rows += self.mac_entry_diff_rows
@@ -283,14 +285,16 @@ class NetworkTestGUI:
 
     def add_mac_entry_default(self):
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
-        for rinfo in self.rinfos:
-            if rinfo[self.trigger_item] == info_trigger_value:
-                if self.upmacs[info_trigger_value]:
-                    for upmac in self.upmacs[info_trigger_value]:
-                        upmacx = upmac.split("_")
-                        me = self.add_mac_entry()
-                        for upmacn in upmacx:
-                            me[upmacx.index(upmacn)].insert(0, upmacn)
+        # print(info_trigger_value)
+        if info_trigger_value  in self.upmacs:
+            upmacs = self.upmacs[info_trigger_value]
+            # print(upmacs)
+            for upmac in upmacs:
+                upmacx = upmac.split("&")
+                me = self.add_mac_entry()
+                for upmacn in upmacx:
+                    me[upmacx.index(upmacn)].delete(0, "end")
+                    me[upmacx.index(upmacn)].insert(0, upmacn)
 
     def trigger_update_info(self, event):
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
@@ -376,7 +380,7 @@ class NetworkTestGUI:
                     event.widget.grid_forget()
                     item["maca"].grid_forget()
                     item["macb"].grid_forget()
-                    self.mac_entry_pair.remove([item["maca", "macb"]])
+                    self.mac_entry_pair.remove([item["maca"], item["macb"]])
                     self.mac_entries.remove(item)
                     self.add_mac_button.configure(state="active")
                     break
@@ -418,12 +422,59 @@ class NetworkTestGUI:
 
         return mp
 
+    def replace_line(self, match, replacement, file_path):
+        with open(file_path, 'r', encoding="utf-8") as file:
+            # 读取整个文件内容
+            text = file.read()
+
+            # 通过正则表达式找到匹配的行
+            pattern = re.compile(match, re.MULTILINE)
+            match_obj = pattern.search(text)
+
+            new_text = text
+
+            if match_obj:
+                # 获取匹配的行
+                matched_line = match_obj.group(0)
+
+                # 替换匹配的行
+                new_text = text.replace(matched_line, replacement)
+            else:
+                new_text = text+replacement
+                # print(new_text)
+
+            # 将新文本写回文件
+            with open(file_path, 'w', encoding="utf-8") as new_file:
+                new_file.write(new_text)
+
     def save(self):
-        uinfo = self.get_user_input()
+        uinfo_local = copy.deepcopy(self.get_user_input())
+        del uinfo_local["pmacs"]
+
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
-        print(uinfo)
-        print(info_trigger_value)
-        # with open(clients_file, "r") as f:
+        # print(uinfo_local)
+        # print(info_trigger_value)
+
+        # root!12345678!22!192.168.8.1!1!openwrt!1!mon1
+        replacement = uinfo_local["user"] +"!" +\
+                      uinfo_local["password"] +"!" +\
+                      uinfo_local["port"] +"!" +\
+                      uinfo_local["ip"] +"!" + "1!" +\
+                      uinfo_local["type"] +"!" +\
+                      uinfo_local["channel"] +"!" +\
+                      uinfo_local["interface"] +"!" +\
+                      uinfo_local["stores"]
+
+        if len(self.mac_entries) > 0:
+            replacement += "!"
+            for mac_entry_kit in self.mac_entries:
+                maca = mac_entry_kit["maca"].get().lower().strip("\r").strip("\n").strip(" ").strip("")
+                macb = mac_entry_kit["macb"].get().lower().strip("\r").strip("\n").strip(" ").strip("")
+                replacement +=maca + "&" + macb + ","
+
+        # print(replacement)
+
+        self.replace_line(r"^.*" + info_trigger_value + ".*\n", replacement + "\n", clients_file)
 
     def get_user_input(self):
         found = False
@@ -940,12 +991,12 @@ def rshark_main():
     root.title("Wi-Fi T/RX Analysis")
 
     # mframe = ttk.Frame(master=root, borderwidth=0, relief="solid", height=gheight, border=0)
-    mframe = ttk.Frame(master=root, borderwidth=0, height=gheight, border=0)
+    mframe = tk.Frame(master=root, borderwidth=0, height=gheight, border=0)
     mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
 
     # parse data frame
     # pdframe = tk.Frame(master=ppframe, borderwidth=1, relief="solid", height=gheight / 2)
-    pdframe = ttk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
+    pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
     pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
 
     # 必须放在frame声明grid之前，否则notebook会覆盖frame
@@ -954,15 +1005,15 @@ def rshark_main():
 
     # parse frame(parse retry frame, parse rate cnt frame, parse rate retry frame)
     # parse retry frame
-    pretry_frame = ttk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    pretry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
     pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # parse rate cnt frame
-    prate_cnt_frame = ttk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    prate_cnt_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
     prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # parse rate retry frame
-    prate_retry_frame = ttk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+    prate_retry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
     prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
 
     # -----------------------------------------pdframe------------------------------------------
@@ -977,7 +1028,7 @@ def rshark_main():
 
     pdframe_canvas.configure(yscrollcommand=pdframe_canvas_scrollbar.set)
 
-    pdframe_interior_frame = ttk.Frame(pdframe_canvas)
+    pdframe_interior_frame = tk.Frame(pdframe_canvas)
     pdframe_canvas.create_window((0, 0), window=pdframe_interior_frame, anchor="nw")
 
     def update_scroll_region(event):

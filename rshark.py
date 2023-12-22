@@ -215,7 +215,8 @@ def rshark_from_conf(file, hosts_out=None):
             lhost["interface"] = l[7].strip(",").split(",")
             lhost["interface"][-1] = lhost["interface"][-1].strip("\n")
             lhost["timeout"] = 10
-            lhost["upmacs"] = l[8].strip(",").strip("\n").split(",") if len(l) >= 9 else [] #配置文件中的过滤MAC地址
+            lhost["upmacs"] = l[9].strip("\n").strip(",").split(",") if len(l) >= 10 else [] #配置文件中的过滤MAC地址
+            # print("xxxxxxx", l, lhost["upmacs"])
 
             if type(hosts_out) == list:
                 hosts_out.append(lhost)
