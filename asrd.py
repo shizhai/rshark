@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import time
 import subprocess
 import threading
@@ -10,6 +9,8 @@ import copy
 import queue
 import rshark
 import http.server
+
+from log import *
 
 from functools import partial
 
@@ -52,7 +53,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     """
 
     def do_response(self, data):
-        print(data)
+        log(INFO, data)
         #print("++++++++++++++++++++++++++++++++")
         # 1. 发送响应code
         self.send_response(data["code"])
@@ -108,7 +109,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         """
         # 0. 获取请求Body中的内容（需要指定读取长度, 不指定会阻塞）
         req_body = self.rfile.read(int(self.headers["Content-Length"])).decode()
-        print("req_body: " + req_body)
+        log(INFO, "req_body: " + req_body)
 
         # 1. 发送响应code
         self.send_response(200)
@@ -199,7 +200,7 @@ class Asrd():
             get_ip_cmd = "netsh interface ip show address | findstr \"IP Address\""
         else:
             get_ip_cmd = "ip addr show dev $(route -n | awk '/UG/{print $8}' | head -n 1) | grep 'inet ' | awk '{print $2}' | awk -F/ '{print $1}'"
-        print(get_ip_cmd)
+        log(DEBUG, get_ip_cmd)
         gic = subprocess.Popen(get_ip_cmd, stdout=subprocess.PIPE, shell=True)
         if self.hostinfo["platform"].startswith("win"):
             self.hostip = gic.stdout.readline().decode("gbk").split(":")[1].strip("\r\n ")
@@ -313,7 +314,7 @@ class Asrd():
         asrd_http_response("ok", args)
 
     def asrd_list_running(self, args):
-        print(self.threads)
+        log(INFO, self.threads)
         r = []
         for t in self.threads:
             r.append(copy.copy(t))
@@ -342,7 +343,7 @@ class Asrd():
                 continue
             except KeyboardInterrupt:
                 return
-            print(args)
+            log(DEBUG, args)
             if "cmd" in args and args["cmd"] in self.queues:
                 self.queues[args["cmd"]](args)
                 pass
@@ -358,9 +359,9 @@ if __name__ == "__main__":
     if not args.conf:
         if os.path.exists("./clients"):
             args.conf = "./clients"
-            print("no parameter input but find local conf file clients, use it!")
+            log(WARNING, "no parameter input but find local conf file clients, use it!")
         else:
-            print("no parameter input!")
+            log(ERROR, "no parameter input!")
             os.exit()
 
     msg_queue["h2s"] = queue.Queue()
@@ -387,4 +388,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         A.httpd.httpd.server_close()
         A.httpfd.httpfd.server_close()
-        print("Exit...")
+        log(ERROR, "Exit...")

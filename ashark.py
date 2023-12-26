@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from tkinter.font import Font
+
+from log import *
 
 os_platform = sys.platform.lower()
 
@@ -28,6 +29,8 @@ gwidth = 1780
 gheight = 840
 gwidth_min = 495
 gheight_min = gheight
+
+right_left_size = gwidth - 570
 
 clients_file = "./clients"
 
@@ -63,15 +66,17 @@ class HoverInfo:
         self.tooltip = None
 
 class NetworkTestGUI:
-    def __init__(self, mframe, pdframe, pfframe):
+    def __init__(self, mframe, sub_frames):
         self.running = False
+        self.sharkd = None
         self.parse_on_time = True
         self.event_loop = asyncio.get_event_loop()
         self.client_thread = None
         self.pshark_thread = None
         self.mframe = mframe
-        self.pdframe = pdframe
-        self.pfframe = pfframe
+        self.pdframe = sub_frames["pd_frame"] if sub_frames and "pd_frame" in sub_frames else None
+        self.pfframe = sub_frames["parse_frame"] if sub_frames and "parse_frame" in sub_frames else None
+        self.pshow = False
         self.rows = 0
         self.data_boxs={}
 
@@ -164,8 +169,7 @@ class NetworkTestGUI:
 
         hosts_out = []
         rshark.rshark_from_conf(clients_file, hosts_out=hosts_out)
-        # print(hosts_out)
-        # msgbox_info = rshark_msgbox_info() 
+        log(DEBUG, hosts_out)
         self.rinfos = []
         for item_host in hosts_out:
             rinfo = {}
@@ -187,7 +191,7 @@ class NetworkTestGUI:
         self.wrinfo = {}
         self.rinfo = {}
         self.trigger_item = "ip"
-        self.tirgger_pframe = "stores"
+        self.trigger_pframe = "stores"
         self.mac_entry_start_row = 0
         self.mac_entry_diff_rows = 3      # max 3 mac filters
         self.mac_entries = []
@@ -204,7 +208,7 @@ class NetworkTestGUI:
                 self.wrinfo["value" + item]["value"] = first_info[item]
                 if len(first_info[item]) > 0:
                     self.wrinfo["value" + item].current(0)
-                if item == self.tirgger_pframe:
+                if item == self.trigger_pframe:
                     self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             elif item == self.trigger_item:
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
@@ -266,21 +270,11 @@ class NetworkTestGUI:
 
         self.rows = self.rows + 1
 
-        # print("cur rows {}".format(self.rows))
         # 统计
         stats_list = ["tx_rate", "tx_cnts", "running_time"]
         self.stats = self.gen_stats_menu_list(stats_list)
 
         self.mframe.update()
-        self.pfframe.update()
-        self.pdframe.update()
-
-        # for itx in self.widgets_all:
-        #     # itx.config(width=self.widget_width, background=self.widget_bg)
-        #     print(itx.winfo_width())
-
-        # create pdframe
-        self.create_pdframe_title()
 
         root.update()
 
@@ -349,22 +343,196 @@ class NetworkTestGUI:
                 self.psubs["t_value"+psub+str(idx)].grid(row=self.pframe_start_row + 1, column=column, padx=0, pady=0, sticky="we")
                 # print(idx, psub, column)
 
+    def ashark_new_subframes(self):
+        global right_left_size
+        global gheight
+        global root
+        # parse data frame
+        pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
+        # pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+        pdframe.grid_forget()
+
+        # 必须放在frame声明grid之前，否则notebook会覆盖frame
+        # notebook = ttk.Notebook(root)
+        # notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        # parse frame(parse retry frame, parse rate cnt frame, parse rate retry frame)
+        # parse retry frame
+        pretry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+        # pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        # parse rate cnt frame
+        prate_cnt_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+        # prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        # parse rate retry frame
+        prate_retry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
+        # prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+        notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+        pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+        prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+        prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+        # -----------------------------------------pdframe------------------------------------------
+        # 接下来为数据分析窗口(pframe)创建画布，以方便实现滚动条
+        # 画布上面创建内侧窗口(interior frame)，并将内侧窗口附着在画布上新创建的窗体(create_window)上
+        # 最后将滚动条通过画布的configure方法添加至画布
+        pdframe_canvas = tk.Canvas(pdframe, borderwidth=0, highlightthickness=0, width=right_left_size, height=(gheight + 6) / 2)
+        pdframe_canvas.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
+
+        pdframe_canvas_scrollbar = ttk.Scrollbar(pdframe, orient="vertical", command=pdframe_canvas.yview)
+        pdframe_canvas_scrollbar.grid(row=0, column=2, sticky="ns")
+
+        pdframe_canvas.configure(yscrollcommand=pdframe_canvas_scrollbar.set)
+
+        pdframe_interior_frame = tk.Frame(pdframe_canvas)
+        pdframe_canvas.create_window((0, 0), window=pdframe_interior_frame, anchor="nw")
+
+        def update_scroll_region(event):
+            pdframe_canvas.configure(scrollregion=pdframe_canvas.bbox("all"))
+
+        pdframe_interior_frame.bind("<Configure>", update_scroll_region)
+        # pdframe_canvas.bind("<Configure>", update_scroll_region)
+
+        # -----------------------------------------pretry_frame------------------------------------------
+        pretry_frame.update()
+        pretry_frame_fig = Figure(figsize=(pretry_frame.winfo_width()/100, pretry_frame.winfo_height()/100), dpi=100)
+
+        # (left, bottom, width, height)
+        pretry_frame_ax = pretry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
+
+        # 将 matplotlib 图形嵌入到 tkinter 窗口中
+        pretry_frame_canvas = FigureCanvasTkAgg(pretry_frame_fig, master=pretry_frame)   
+        pretry_frame_canvas.draw()
+        # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        pretry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+        # -----------------------------------------prate_cnt_frame------------------------------------------
+        prate_cnt_frame.update()
+        prate_frame_fig = Figure(figsize=(prate_cnt_frame.winfo_width()/100, prate_cnt_frame.winfo_height()/100), dpi=100)
+
+        # (left, bottom, width, height)
+        prate_frame_ax = prate_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
+        # 使用 bar 函数绘制柱状图
+        # prframe_ax.bar(categories, values, color='blue')
+
+        # 将 matplotlib 图形嵌入到 tkinter 窗口中
+        prate_frame_canvas = FigureCanvasTkAgg(prate_frame_fig, master=prate_cnt_frame)
+        prate_frame_canvas.draw()
+        # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        prate_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+        # -----------------------------------------prate_retry_frame------------------------------------------
+        prate_retry_frame.update()
+        prate_retry_frame_fig = Figure(figsize=(prate_retry_frame.winfo_width()/100, prate_retry_frame.winfo_height()/100), dpi=100)
+
+        # (left, bottom, width, height)
+        prate_retry_frame_ax = prate_retry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
+        # 使用 bar 函数绘制柱状图
+        # prframe_ax.bar(categories, values, color='blue')
+
+        # 将 matplotlib 图形嵌入到 tkinter 窗口中
+        prate_retry_frame_canvas = FigureCanvasTkAgg(prate_retry_frame_fig, master=prate_retry_frame)
+        prate_retry_frame_canvas.draw()
+        prate_retry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
+
+        pframe_info = { "pd_frame":{ "frame": pdframe_interior_frame, "parent": pdframe},
+                        "parse_frame": {
+                            "root":root,
+                            "pretry_frame": {
+                                "frame": pretry_frame,
+                                "plot": pretry_frame_ax,
+                                "canvas": pretry_frame_canvas,
+                                "figure": pretry_frame_fig
+                            },
+                            "prate_frame":{
+                                "frame": prate_cnt_frame,
+                                "plot": prate_frame_ax,
+                                "canvas": prate_frame_canvas
+                            },
+                            "prate_retry_frame":{
+                                "frame": prate_retry_frame,
+                                "plot": prate_retry_frame_ax,
+                                "canvas": prate_retry_frame_canvas
+                            },
+                        }
+                        }
+
+        notebook.add(pretry_frame, text="RetryTrend")
+        notebook.add(prate_cnt_frame, text="RateCounts")
+        notebook.add(prate_retry_frame, text="RateRetry")
+
+        return pframe_info
+
     def trigger_update_pframe_info(self, event):
         self.data_rows = 2
-        
-        info_trigger_value = self.wrinfo["value" + self.tirgger_pframe].get()
-        if info_trigger_value.startswith("pshark://"):
-            rshark_toggle_pframe(self.pdframe, self.pfframe, True)
+
+        if not self.pdframe or not self.pfframe:
+            self.wrinfo["value" + self.trigger_pframe].unbind('<<ComboboxSelected>>')
+            self.sub_frames = self.ashark_new_subframes()
+            self.pdframe = self.sub_frames["pd_frame"]["frame"]
+            self.pfframe = self.sub_frames["parse_frame"]
+            self.sub_frames["parse_frame"]["pretry_frame"]["figure"].canvas.mpl_connect('scroll_event', self.fig_on_scroll_event)
+
+            # create pdframe
+            self.pfframe.update()
+            self.pdframe.update()
+            self.create_pdframe_title()
+            self.wrinfo["value" + self.trigger_pframe].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
+            self.pshow = True
         else:
-            rshark_toggle_pframe(self.pdframe, self.pfframe, False)
+            info_trigger_value = self.wrinfo["value" + self.trigger_pframe].get()
+            if info_trigger_value.startswith("pshark://"):
+                self.rshark_toggle_pframe(True)
+            else:
+                self.rshark_toggle_pframe(False)
+
+    def rshark_toggle_pframe(self, pshow=False):
+        global root
+        log(DEBUG, r"show {}".format("True" if pshow else "False"))
+        if pshow:
+            if self.pshow:
+                return
+
+            self.sub_frames["pd_frame"]["parent"].grid(row=0, column=1, padx=5, pady=0, sticky="wen")
+            notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+            self.pfframe["pretry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+            self.pfframe["prate_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+            self.pfframe["prate_retry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
+
+            notebook.add(self.pfframe["pretry_frame"]["frame"], text="RetryTrend")
+            notebook.add(self.pfframe["prate_frame"]["frame"], text="RateCounts")
+            notebook.add(self.pfframe["prate_retry_frame"]["frame"], text="RateRetry")
+        else:
+            if not self.pshow:
+                return
+
+            notebook.forget(self.pfframe["pretry_frame"]["frame"])
+            notebook.forget(self.pfframe["prate_frame"]["frame"])
+            notebook.forget(self.pfframe["prate_retry_frame"]["frame"])
+
+            self.pfframe["pretry_frame"]["frame"].grid_forget()
+            self.pfframe["prate_frame"]["frame"].grid_forget()
+            self.pfframe["prate_retry_frame"]["frame"].grid_forget()
+            self.sub_frames["pd_frame"]["parent"].grid_forget()
+
+            notebook.grid_forget()
+
+        self.pshow = pshow
+
+        self.pdframe.update()
+        self.sub_frames["pd_frame"]["parent"].update()
+        self.pfframe["pretry_frame"]["frame"].update()
+        self.pfframe["prate_frame"]["frame"].update()
+        self.pfframe["prate_retry_frame"]["frame"].update()
+        root.update()
 
     def remove_mac_entry(self, event):
         for item in self.mac_entries:
             if item["rmb"] == event.widget:
-                # button_x = item["rmb"].winfo_x()
-                # button_y = item["rmb"].winfo_y()
-                # print(button_x, event.x, item["rmb"].winfo_width())
-                # print(button_y, event.y, item["rmb"].winfo_height())
                 if 0 <= event.x <= item["rmb"].winfo_width() and 0 <= event.y <= item["rmb"].winfo_height():
                     event.widget.grid_forget()
                     item["maca"].grid_forget()
@@ -402,7 +570,7 @@ class NetworkTestGUI:
         self.mac_entries.append({"maca": mac_entry1, "macb": mac_entry2, "rmb": remove_mac_button})
 
         if (len(self.mac_entries) >= self.mac_entry_diff_rows):
-            print("Max filter macs group added!")
+            log(WARNING, "Max filter macs group added!")
             self.add_mac_button.configure(state="disabled")
 
         mp = [mac_entry1, mac_entry2]
@@ -672,7 +840,7 @@ class NetworkTestGUI:
             # 清除当前图形并绘制新数据
             # pretry_frame["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], ls='-', marker='.', mec='b', mfc='w', label=item)
             pretry_frame["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], label=item)
-            pretry_frame["plot"].set_title('Retry Counts Tendency Chart')
+            # pretry_frame["plot"].set_title('Retry Counts Tendency Chart')
             pretry_frame["plot"].set_xlabel('time(s)')
             pretry_frame["plot"].set_ylabel('cnts(pkt)')
             pretry_frame["plot"].legend()
@@ -699,12 +867,8 @@ class NetworkTestGUI:
         if mac1.lower() == "none" or mac2.lower() == "none":
             return
 
-        target = mac1.replace(":","")+"->"+mac2.replace(":","")
-        # print(time.time(), target, data_info)
-
-        # if not "plot" in self.pfframe:
-
-        # print(target, self.pt_list, self.pr_list[target]["pdata"] if target in self.pr_list else "NEW")
+        target = mac1 +"->"+mac2
+        log(DEBUG, target, data_info)
 
         if not target in self.pr_list:
             if self.plot_color_handle(None) == 0:
@@ -787,7 +951,7 @@ class NetworkTestGUI:
 
     def start_client(self):
         if self.running:
-            print("Already is running and please stop first!")
+            log(ERROR, "Already is running and please stop first!")
             messagebox.showinfo("Information", "Already is running and please stop first!")
             return
 
@@ -809,34 +973,38 @@ class NetworkTestGUI:
         self.running = True
         if self.check_box_enable_iperf.get() == 1:
             self.client_thread.start()
+
         self.pshark_thread.start()
 
     def run_pshark(self):
         msgbox_info = self.get_user_input()
-        # print("---------------------><", msgbox_info)
 
-        # print(msgbox_info)
-        self.sharkd = rshark.Rshark(msgbox_info["type"],
-                                    msgbox_info["ip"],
-                                    msgbox_info["port"],
-                                    msgbox_info["user"],
-                                    msgbox_info["password"],
-                                    msgbox_info["stores"],
-                                    msgbox_info["interface"],
-                                    msgbox_info["channel"],
-                                    None,
-                                    10,
-                                    msgbox_info["pmacs"])
-        sub_args = {"cb": self.update_data, "eloop": self.event_loop, "stores": msgbox_info["stores"]}
-        self.sharkd.rshark_set_pshark_cb(sub_args)
-        self.sharkd.rshark_sniffer()
+        try:
+            self.sharkd = rshark.Rshark(msgbox_info["type"],
+                                        msgbox_info["ip"],
+                                        msgbox_info["port"],
+                                        msgbox_info["user"],
+                                        msgbox_info["password"],
+                                        msgbox_info["stores"],
+                                        msgbox_info["interface"],
+                                        msgbox_info["channel"],
+                                        None,
+                                        10,
+                                        msgbox_info["pmacs"])
+            sub_args = {"cb": self.update_data, "eloop": self.event_loop, "stores": msgbox_info["stores"]}
+            self.sharkd.rshark_set_pshark_cb(sub_args)
+            self.sharkd.rshark_sniffer()
+        except Exception as e:
+        # except KeyboardInterrupt:
+            log(ERROR, f"Rshark connect/start sniffer device failed, please check device's power or system version, {e}!")
+            self.stop()
 
     def run_client(self):
         # sniffer has to be started first
         while not hasattr(self, "sharkd") or not self.sharkd.input_running:
             time.sleep(0.1)
 
-        print("Ready to send pkts...")
+        log(INFO, "Ready to send pkts...")
         ip = self.ip_entry.get()
         port = int(self.port_entry.get())
         rate = self.rate_select.get().strip("bps")
@@ -850,8 +1018,10 @@ class NetworkTestGUI:
             return
 
         self.stop_event.set()
-        # self.sharkd.rshark_store_pyshark_async_parse()
-        self.sharkd.rshark_force_exit()
+
+        if self.sharkd:
+            self.sharkd.rshark_force_exit()
+
         self.running = False
 
         self.client_button.configure(state="active")
@@ -878,7 +1048,7 @@ class NetTestClient:
         self.start_time = 0
 
     def start(self):
-        print(f"UDP Client sending to {self.host}:{self.port}. Starting bandwidth test.")
+        log(INFO, f"UDP Client sending to {self.host}:{self.port}. Starting bandwidth test.")
         # self.client_socket.sendto(data, (self.host, self.port))
         # print(self.rate)
 
@@ -936,182 +1106,26 @@ class NetTestClient:
                 self.stats["tx_cnts"].set(str(self.total_tx_cnts))
                 self.stats["running_time"].set("{:.2f} s".format(round(time.time() - self.start_time), 2))
 
-            print("Stop event captured in TG!")
+            log(WARNING, "Stop event captured in TG!")
             self.cmd_handle.kill()
             self.cmd_handle.communicate()
             self.cmd_handle.terminate()
             self.cmd_handle.wait(5)
         except subprocess.CalledProcessError as e:
-            print(f"Error: {e}")
+            log(ERROR, f"Error: {e}")
         # messagebox.showerror("Connection Error", "Failed to connect to the server. Make sure the server is running.")
 
-def rshark_toggle_pframe(pframe, pfframes, pshow=False):
-    parent = pframe.winfo_parent()
-    parent = root.nametowidget(parent).winfo_parent()
-    parent = root.nametowidget(parent)
-    if pshow:
-        parent.grid(row=0, column=1, padx=5, pady=0, sticky="wen")
-        notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-        pfframes["pretry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-        pfframes["prate_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-        pfframes["prate_retry_frame"]["frame"].grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-        notebook.add(pfframes["pretry_frame"]["frame"], text="RetryTrend")
-        notebook.add(pfframes["prate_frame"]["frame"], text="RateCounts")
-        notebook.add(pfframes["prate_retry_frame"]["frame"], text="RateRetry")
-
-    else:
-        parent.grid_forget()
-
-        pfframes["pretry_frame"]["frame"].grid_forget()
-        pfframes["prate_frame"]["frame"].grid_forget()
-        pfframes["prate_retry_frame"]["frame"].grid_forget()
-
-        notebook.grid_forget()
-
-    pframe.update()
-    pfframes["pretry_frame"]["frame"].update()
-    pfframes["prate_frame"]["frame"].update()
-    pfframes["prate_retry_frame"]["frame"].update()
-    root.update()
-
 def rshark_main():
-    right_left_size = gwidth - 570
-
-    # root.maxsize(width=gwidth_min, height=gheight_min + 10) 
-    # root.minsize(width=gwidth_min, height=gheight_min + 10)
-
     root.resizable(False, False)
 
     root.title("Wi-Fi T/RX Analysis")
 
-    # mframe = ttk.Frame(master=root, borderwidth=0, relief="solid", height=gheight, border=0)
+    root.iconbitmap("./files/wifi.ico")
+
     mframe = tk.Frame(master=root, borderwidth=0, height=gheight, border=0)
     mframe.grid(row=0, column=0, rowspan=2, padx=5, pady=0, sticky="wen")
 
-    # parse data frame
-    pdframe = tk.Frame(master=root, borderwidth=1, relief="solid", width=right_left_size, height=gheight / 2)
-    # pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
-    pdframe.grid_forget()
-
-    # 必须放在frame声明grid之前，否则notebook会覆盖frame
-    # notebook = ttk.Notebook(root)
-    # notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-    # parse frame(parse retry frame, parse rate cnt frame, parse rate retry frame)
-    # parse retry frame
-    pretry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    # pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-    # parse rate cnt frame
-    prate_cnt_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    # prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-    # parse rate retry frame
-    prate_retry_frame = tk.Frame(master=root, borderwidth=0, relief="solid", width=right_left_size, height=gheight / 2)
-    # prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-    pdframe.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
-    notebook.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-    pretry_frame.grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-    prate_cnt_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-    prate_retry_frame .grid(row=1, column=1, padx=0, pady=0, sticky="wen")
-
-    # -----------------------------------------pdframe------------------------------------------
-    # 接下来为数据分析窗口(pframe)创建画布，以方便实现滚动条
-    # 画布上面创建内侧窗口(interior frame)，并将内侧窗口附着在画布上新创建的窗体(create_window)上
-    # 最后将滚动条通过画布的configure方法添加至画布
-    pdframe_canvas = tk.Canvas(pdframe, borderwidth=0, highlightthickness=0, width=right_left_size, height=(gheight + 6) / 2)
-    pdframe_canvas.grid(row=0, column=1, padx=0, pady=0, sticky="wen")
-
-    pdframe_canvas_scrollbar = ttk.Scrollbar(pdframe, orient="vertical", command=pdframe_canvas.yview)
-    pdframe_canvas_scrollbar.grid(row=0, column=2, sticky="ns")
-
-    pdframe_canvas.configure(yscrollcommand=pdframe_canvas_scrollbar.set)
-
-    pdframe_interior_frame = tk.Frame(pdframe_canvas)
-    pdframe_canvas.create_window((0, 0), window=pdframe_interior_frame, anchor="nw")
-
-    def update_scroll_region(event):
-        pdframe_canvas.configure(scrollregion=pdframe_canvas.bbox("all"))
-
-    pdframe_interior_frame.bind("<Configure>", update_scroll_region)
-    # pdframe_canvas.bind("<Configure>", update_scroll_region)
-
-    # -----------------------------------------pretry_frame------------------------------------------
-    pretry_frame.update()
-    pretry_frame_fig = Figure(figsize=(pretry_frame.winfo_width()/100, pretry_frame.winfo_height()/100), dpi=100)
-
-    # (left, bottom, width, height)
-    pretry_frame_ax = pretry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
-
-    # 将 matplotlib 图形嵌入到 tkinter 窗口中
-    pretry_frame_canvas = FigureCanvasTkAgg(pretry_frame_fig, master=pretry_frame)   
-    pretry_frame_canvas.draw()
-    # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-    pretry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
-
-    # -----------------------------------------prate_cnt_frame------------------------------------------
-    prate_cnt_frame.update()
-    prate_frame_fig = Figure(figsize=(prate_cnt_frame.winfo_width()/100, prate_cnt_frame.winfo_height()/100), dpi=100)
-
-    # (left, bottom, width, height)
-    prate_frame_ax = prate_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
-    # 使用 bar 函数绘制柱状图
-    # prframe_ax.bar(categories, values, color='blue')
-
-    # 将 matplotlib 图形嵌入到 tkinter 窗口中
-    prate_frame_canvas = FigureCanvasTkAgg(prate_frame_fig, master=prate_cnt_frame)
-    prate_frame_canvas.draw()
-    # pretry_frame_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-    prate_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
-
-    # -----------------------------------------prate_retry_frame------------------------------------------
-    prate_retry_frame.update()
-    prate_retry_frame_fig = Figure(figsize=(prate_retry_frame.winfo_width()/100, prate_retry_frame.winfo_height()/100), dpi=100)
-
-    # (left, bottom, width, height)
-    prate_retry_frame_ax = prate_retry_frame_fig.add_axes([0.07, 0.15, 0.9, 0.8])
-    # 使用 bar 函数绘制柱状图
-    # prframe_ax.bar(categories, values, color='blue')
-
-    # 将 matplotlib 图形嵌入到 tkinter 窗口中
-    prate_retry_frame_canvas = FigureCanvasTkAgg(prate_retry_frame_fig, master=prate_retry_frame)
-    prate_retry_frame_canvas.draw()
-    prate_retry_frame_canvas.get_tk_widget().grid(padx=0, pady=0, sticky="wens")
-
-
-    pframe_info = {"root":root,
-                    "pretry_frame": {
-                        "frame": pretry_frame,
-                        "plot": pretry_frame_ax,
-                        "canvas": pretry_frame_canvas
-                     },
-                     "prate_frame":{
-                        "frame": prate_cnt_frame,
-                        "plot": prate_frame_ax,
-                        "canvas": prate_frame_canvas
-                     },
-                     "prate_retry_frame":{
-                        "frame": prate_retry_frame,
-                        "plot": prate_retry_frame_ax,
-                        "canvas": prate_retry_frame_canvas
-                     },
-                     }
-
-    notebook.add(pretry_frame, text="RetryTrend")
-    notebook.add(prate_cnt_frame, text="RateCounts")
-    notebook.add(prate_retry_frame, text="RateRetry")
-
-    ntg = NetworkTestGUI(mframe, pdframe_interior_frame, pframe_info)
-
-    pretry_frame_fig.canvas.mpl_connect('scroll_event', ntg.fig_on_scroll_event)
-    # pfframe_fig.canvas.mpl_connect('button_press_event', ntg.fig_on_scroll_event)
-    # 在鼠标悬停时显示坐标值
-    # mplcursors.cursor(hover=True)
-
-    rshark_toggle_pframe(pdframe_interior_frame, pframe_info,  False)
+    ntg = NetworkTestGUI(mframe, None)
 
     root.mainloop()
 
@@ -1144,9 +1158,9 @@ if __name__ == "__main__":
                 break
 
         if not args.ip:
-            print("ERROR! remote ip address required and not configure file found!")
+            log(ERROR, "Remote ip address required and not configure file found!")
         else:
-            print("WARNING! remote ip address required, use first one {}!".format(args.ip))
+            log(WARNING, "Remote ip address required, use first one {}!".format(args.ip))
         shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, None)
         shark.rshark_sniffer()
     else:

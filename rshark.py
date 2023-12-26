@@ -9,10 +9,12 @@ import queue
 import os
 import subprocess
 
-import datetime
+from datetime import datetime
 
 from paramiko import SSHClient
 from paramiko import AutoAddPolicy
+
+from log import *
 
 display_realtime = True
 pshark_realtime = True
@@ -22,7 +24,6 @@ cli_running_ip=None
 cli_running_intf=None
 # rshark_running = os.path.split(os.path.realpath(__file__))[0] + "/rshark.running"
 rshark_running = "./rshark.running"
-pshark_data_cache = []
 
 os_platform = sys.platform.lower()
 
@@ -139,7 +140,7 @@ def rshark_remove_running(ip, intf):
                 break
             linex = line.split(",")
             if linex[0] == ip and linex[1] == intf:
-                print("Remove running sniffer device{}@{}".format(ip, intf))
+                log(INFO, "Remove running sniffer device{}@{}".format(ip, intf))
                 continue
 
             new_lines.append(line)
@@ -167,7 +168,7 @@ def rshark_check_running(ip, intf):
                 break
             linex = line.split(",")
             if linex[0] == args.ip and linex[1] == args.interface:
-                print("WARNING! host {} with interface {} is runsing!".format(args.ip, args.interface))
+                log(WARNING, "Host {} with interface {} is runsing!".format(args.ip, args.interface))
                 rrf.close()
                 return True
 
@@ -180,11 +181,9 @@ def rshark_check_running(ip, intf):
 
 def exit_sig(signum, frame):
     rshark_remove_running(cli_running_ip, cli_running_intf)
-    if len(pshark_data_cache) > 0:
-        print("=========pshark cache=========")
-        print(pshark_data_cache)
 
-    print("Exit with signum {}...".format(signum))
+    log(WARNING, "Exit with signum {}...".format(signum))
+
     sys.exit()
 
 def rshark_from_conf(file, hosts_out=None):
@@ -231,7 +230,7 @@ def rshark_lookup_hosts(ip, ifraise, useTunnel):
         if host["ip"] == ip and host["usetunnel"] == useTunnel:
             return host
 
-    print("host: " + ip + " Not found!")
+    log(ERROR, "Host: " + ip + " Not found!")
     if ifraise:
         raise
     else:
@@ -282,14 +281,14 @@ class Rshark():
         if store_tmp[0] in self.store_types:
             self.store_type = store_tmp[0]
             if not store_tmp[1] and self.store_types[store_tmp[0]]["need_path"]:
-                print("ERROR, local store method need path")
+                log(ERROR, "Local store method need path")
                 # os.kill(os.getpid(), signal.SIGABRT)
                 exit_sig(None, None)
 
             self.store_types[store_tmp[0]]["arg"] = store_tmp[1]
             self.lstore = self.store_types[store_tmp[0]]
         else:
-            print("ERROR, store type {} not support!".format(store_tmp[0]))
+            log(ERROR, "Store type {} not support!".format(store_tmp[0]))
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
 
@@ -305,14 +304,14 @@ class Rshark():
         if rtype in self.rtypes:
             self.conf_handler = self.rtypes[rtype]["cb"]
         else:
-            print("ERROR, target device type {} not support!".format(rtype))
+            log(ERROR, "Target device type {} not support!".format(rtype))
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
 
         posix_nt_home = os.path.expanduser("~")
         if os_platform.startswith("win"):
             if  not os.path.exists(posix_nt_home + r"\.ssh\id_rsa.pub"):
-                print("create ssh key1...")
+                log(INFO, "Create ssh key1...")
                 if not os.path.exists(posix_nt_home + r"\.ssh"):
                     os.makedirs(posix_nt_home + r"\.ssh")
                 ssh_keygen_cmd = "ssh-keygen -t rsa -N \"\" -f %userprofile%/.ssh/id_rsa -q"
@@ -340,7 +339,7 @@ class Rshark():
     def rshark_force_exit(self):
         self.rate_db = {}
         if self.tcpdump_pid > 0:
-            print("kill pid: ", self.tcpdump_pid)
+            log(INFO, "Close pid: ", self.tcpdump_pid)
             kill_str = "kill -9 " + str(self.tcpdump_pid)
             try:
                 self.ssh.exec_command(kill_str)
@@ -352,25 +351,25 @@ class Rshark():
                 self.pipc.close()
             except:
                 pass
-            print("Close pipe capture done!")
+            log(INFO, "Close pipe capture done!")
 
-        print("Close remote process done!")
+        log(INFO, "Close remote process done!")
         for item in self.wait_subprocess:
             try:
                 item.kill()
             except:
                 pass
             finally:
-                print("Close {} process done!".format(item))
+                log(INFO, "Close {} process done!".format(item))
 
         try:
             self.exit_event.set()
-            print("Set exit event done!")
+            log(INFO, "Set exit event done!")
         except:
             pass
         try:
             self.ssh.close()
-            print("Close ssh done!")
+            log(INFO, "Close ssh done!")
         except:
             pass
 
@@ -408,13 +407,13 @@ class Rshark():
         self.ssh.exec_command(allow_forward)
         self.ssh.exec_command("uci commit")
         self.ssh.exec_command("/etc/init.d/firewall restart")
-        print("Configure openwrt firewall done!")
+        log(INFO, "Configure openwrt firewall done!")
 
         self.ssh.exec_command("uci set system.@system[0].timezone=\'CST-8\'")
         self.ssh.exec_command("uci set system.@system[0].zonename=\'Asia/Shanghai\'")
         self.ssh.exec_command("uci commit")
-        self.ssh.exec_command("date -s \"" + str(datetime.datetime.now()).split(".")[0] +"\"")
-        print("Configure openwrt time {} done!".format(str(datetime.datetime.now()).split(".")[0]))
+        self.ssh.exec_command("date -s \"" + str(datetime.now()).split(".")[0] +"\"")
+        log(INFO, "Configure openwrt time {} done!".format(str(datetime.now()).split(".")[0]))
 
         self.ssh.exec_command("sed -i '/dhcp-option=/d' /etc/dnsmasq.conf")
         self.ssh.exec_command("echo 'dhcp-option=3' >> /etc/dnsmasq.conf")
@@ -422,7 +421,7 @@ class Rshark():
         self.ssh.exec_command("uci set dhcp.@dnsmasq[0].port=0")
         self.ssh.exec_command("uci commit")
         self.ssh.exec_command("/etc/init.d/dnsmasq restart")
-        print("Configure openwrt dhcp done!")
+        log(INFO, "Configure openwrt dhcp done!")
 
         if os_platform.startswith("win"):
             wireless_file = current_path + "\\" + "openwrt\\wireless"
@@ -431,7 +430,7 @@ class Rshark():
 
         if os.path.exists(wireless_file):
             self.ssh.exec_command(">/etc/config/wireless")
-            print("Read wireless config file from {}".format(wireless_file))
+            log(INFO, "Read wireless config file from {}".format(wireless_file))
             #+ self.ruser +"@" + self.rip + ":/tmp/"
             with open(wireless_file, "r") as wireless_id:
                 while True:
@@ -447,7 +446,7 @@ class Rshark():
             get_target_type = "if [ -n \"$(cat /etc/banner | grep openwrt -ri)\" ];then echo openwrt ;else echo QSDK;fi"
             _, stdout, _ = self.ssh.exec_command(get_target_type)
             target_type = stdout.readline().strip("\n")
-            print("Use static wireless({}) config file for OpenWrt!".format(target_type))
+            log(INFO, "Use static wireless({}) config file for OpenWrt!".format(target_type))
 
         if_idx = (0, 1)
         tinf_cmds = ["uci get wireless.@wifi-iface[{}].mode", "uci get wireless.@wifi-iface[{}].ifname"]
@@ -469,7 +468,7 @@ class Rshark():
             if item["ifname"].lower() == self.intf.lower() and item["mode"].lower() == "monitor":
                 item_fund = True
                 self.ssh.exec_command("iwconfig " + self.intf + " channel " + str(self.chan))
-                print("Set channel without full configure wifi!")
+                log(INFO, "Set channel without full configure wifi!")
                 break
 
         if not item_fund:
@@ -481,7 +480,7 @@ class Rshark():
                 # print(line_cmd)
                 self.ssh.exec_command(line_cmd)
 
-            print("Sync full openwrt wifi configure done!")
+            log(INFO, "Sync full openwrt wifi configure done!")
 
             self.ssh.exec_command("ifconfig " + self.intf + " down")
             self.ssh.exec_command("uci set wireless.wifi" + self.intf[-1] + ".channel=" + str(self.chan))
@@ -499,13 +498,13 @@ class Rshark():
             if rsp == self.intf:
                 break
 
-        print("Enable new openwrt wifi configure done!")
+        log(INFO, "Enable new openwrt wifi configure done!")
 
     def rshark_conf_ubuntu(self):
-        stdin, stdout, stderr = self.ssh.exec_command("whoami")
+        _, stdout, _= self.ssh.exec_command("whoami")
         rsp = stdout.readline().replace("\n", "")
         if rsp.casefold() != "root".casefold():
-            print("ERROR, root user only!")
+            log(ERROR, "root user only!")
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
 
@@ -527,7 +526,7 @@ class Rshark():
         # print("test2")
 
         if self.intf not in response:
-            print("ERROR, Interface {} pull up failed".format(self.intf))
+            log(ERROR, "Interface {} pull up failed".format(self.intf))
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
         else:
@@ -587,7 +586,7 @@ class Rshark():
 
             while True:
                 index = child.expect(["error", "yes.*?", "password:", "Number of key(s) added: 1", "Now try logging into the machine"])
-                print("Expect:{}".format(index))
+                log(DEBUG, "Expect:{}".format(index))
                 if index == 0:
                     child.kill(0)
                 elif index == 1:
@@ -617,19 +616,19 @@ class Rshark():
         ab	Opens a file for appending in binary format. The file pointer is at the end of the file if the file exists. That is, the file is in the append mode. If the file does not exist, it creates a new file for writing.
         ab+	Opens a file for both appending and reading in binary format. The file pointer is at the end of the file if the file exists. The file opens in the append mode. If the file does not exist, it creates a new file for reading and writing.
         '''
-        print("store local.....", arg)
+        log(INFO, "Store local.....", arg)
         if not os.path.exists(arg):
             os.makedirs(arg)
-            print("WARNING, store path {} not found!".format(arg))
+            log(WARNING, "Store path {} not found!".format(arg))
 
         dst_file = arg + self.file
 
-        print("Storing {}".format(dst_file))
+        log(INFO, "Storing {}".format(dst_file))
         try:
-            print("Store to file ", dst_file)
+            log(INFO, "Store to file ", dst_file)
             df = open(dst_file, mode='ab')
         except:
-            print("ERROR, Fail to open {}".format(dst_file))
+            log(ERROR, "Fail to open {}".format(dst_file))
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
         else:
@@ -654,7 +653,7 @@ class Rshark():
                 result = r"{}".format(rsp.stdout.readline().decode("gbk").strip("\r\n "))
                 match = re.search(r'AppData', result, re.M|re.I).group(0)
                 if not match:
-                    print("ERROR, Fail to open {}".format(wiresharkx))
+                    log(ERROR, "Fail to open {}".format(wiresharkx))
                     # os.kill(os.getpid(), signal.SIGABRT)
                     exit_sig(None, None)
 
@@ -666,7 +665,7 @@ class Rshark():
             # print(result)
             wiresharkx = result
 
-        print("store wireshark@{}...".format(wiresharkx))
+        log(INFO, "Store wireshark@{}...".format(wiresharkx))
         pargs = [wiresharkx, "-k", "-S", "-b", "duration:5", "-i", "-"]
         if os_platform.startswith("win"):
             for win_temp in ["--temp-dir", "."]:
@@ -1037,16 +1036,16 @@ class Rshark():
     def rshark_sniffer_pre(self):
         #key sync
         self.rshark_update_key()
-        print("Sync handshake key done!")
+        log(INFO, "Sync handshake key done!")
         #wifi conf
         if not self.conf_handler:
-            print("ERROR, Not support configure target device!")
+            log(ERROR, "Not support configure target device!")
             # os.kill(os.getpid(), signal.SIGABRT)
             exit_sig(None, None)
         else:
             self.conf_handler()
 
-        print("Env setup done!")
+        log(INFO, "Env setup done!")
         pass
 
     def rshark_host_pre(self):
@@ -1128,7 +1127,7 @@ class Rshark():
         #     pargs.append("port")
         #     pargs.append(str(self.rport))
 
-        print("Starting sniffer@channel[{}].....".format(self.chan))
+        log(INFO, "Starting sniffer@channel[{}].....".format(self.chan))
 
         try:
             proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)

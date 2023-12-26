@@ -31,6 +31,12 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.4.2
+
+> fix log output miss timestamp and color
+> 
+> fix parse windows generated at startup, we should generate at right time
+
 v3.4.1
 
 > add support to save sniffer device info
