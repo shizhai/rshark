@@ -293,6 +293,11 @@ class NetworkTestGUI:
         root.update()
 
     def list_all_presults(self):
+        info_trigger_value = self.wrinfo["value" + self.trigger_pframe].get()
+        if not info_trigger_value.startswith("pshark://"):
+            log(ERROR, "Please select stores to pshark://. first")
+            return
+
         log(INFO, "Render plot & save all data to file ./pshark_cache.txt")
         with open("./pshark_cache.txt", "w") as f:
             # for mac1 in self.pretry_all:
@@ -953,7 +958,11 @@ class NetworkTestGUI:
         # 绘制两组柱状图，调整第二组柱状图的位置
         bar_width = 0.1
         categories = list(d.keys())
-        bar_positions = range(len(categories))
+        categories_len = len(categories)
+        bar_positions = range(categories_len)
+
+        if categories_len == 0:
+            return
 
         # list(set(list(a.keys()) + list(b.keys()))) 利用set去重
         macs_list = []
