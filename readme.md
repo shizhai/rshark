@@ -31,11 +31,18 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
-v3.4.2
+v3.4.4 @2023/12/27 <br>
+> render plot by press the button instead of automatically while it cost too much time<br>
 
-> fix log output miss timestamp and color
-> 
-> fix parse windows generated at startup, we should generate at right time
+v3.4.3 @2023/12/27 <br>
+> add support to list all for pshark<br>
+> fix LOG color fail for INFO<br>
+> remove some useless log<br>
+> fix store to wireshark persist file fail with split to 4096GB for each file
+
+v3.4.2 @2023/12/26 <br>
+> fix log output miss timestamp and color<br>
+> fix parse windows generated at startup, we should generate at right time<br>
 
 v3.4.1
 

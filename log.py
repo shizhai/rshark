@@ -16,7 +16,7 @@ if os_platform.startswith("win"):
     init(autoreset=True)
     COLORCODES["gray"] = Fore.LIGHTBLACK_EX
     COLORCODES["green"] = Fore.GREEN
-    COLORCODES["orange"] = Fore.LIGHTRED_EX
+    COLORCODES["orange"] = Fore.LIGHTYELLOW_EX
     COLORCODES["red"] = Fore.RED
     ENDCOLOR=""
 
@@ -24,6 +24,7 @@ global_log_level = INFO
 def log(level, msg, color=None, showtime=True):
 	if level < global_log_level: return
 	if level == DEBUG   and color is None: color="gray"
+	if level == INFO and color is None: color="green"
 	if level == WARNING and color is None: color="orange"
 	if level == ERROR   and color is None: color="red"
 	msg = (datetime.now().strftime('[%H:%M:%S] ') if showtime else " "*11) + COLORCODES.get(color, "") + msg + ENDCOLOR

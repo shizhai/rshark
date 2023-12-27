@@ -339,7 +339,7 @@ class Rshark():
     def rshark_force_exit(self):
         self.rate_db = {}
         if self.tcpdump_pid > 0:
-            log(INFO, "Close pid: ", self.tcpdump_pid)
+            log(INFO, r"Close pid: {}".format(self.tcpdump_pid))
             kill_str = "kill -9 " + str(self.tcpdump_pid)
             try:
                 self.ssh.exec_command(kill_str)
@@ -360,7 +360,7 @@ class Rshark():
             except:
                 pass
             finally:
-                log(INFO, "Close {} process done!".format(item))
+                log(INFO, "Close {} process done!".format(item.pid))
 
         try:
             self.exit_event.set()
@@ -616,16 +616,15 @@ class Rshark():
         ab	Opens a file for appending in binary format. The file pointer is at the end of the file if the file exists. That is, the file is in the append mode. If the file does not exist, it creates a new file for writing.
         ab+	Opens a file for both appending and reading in binary format. The file pointer is at the end of the file if the file exists. The file opens in the append mode. If the file does not exist, it creates a new file for reading and writing.
         '''
-        log(INFO, "Store local.....", arg)
+        log(INFO, r"Store local dir {}".format(arg))
         if not os.path.exists(arg):
             os.makedirs(arg)
             log(WARNING, "Store path {} not found!".format(arg))
 
         dst_file = arg + self.file
 
-        log(INFO, "Storing {}".format(dst_file))
         try:
-            log(INFO, "Store to file ", dst_file)
+            log(INFO, r"Store to file {}".format(dst_file))
             df = open(dst_file, mode='ab')
         except:
             log(ERROR, "Fail to open {}".format(dst_file))
@@ -666,16 +665,24 @@ class Rshark():
             wiresharkx = result
 
         log(INFO, "Store wireshark@{}...".format(wiresharkx))
-        pargs = [wiresharkx, "-k", "-S", "-b", "duration:5", "-i", "-"]
-        if os_platform.startswith("win"):
-            for win_temp in ["--temp-dir", "."]:
-                pargs.append(win_temp)
+        pargs = [wiresharkx, "-k", "-S", "-b", "filesize:4096000", "-i", "-"]
+        # if os_platform.startswith("win"):
+        #     for win_temp in ["--temp-dir", "."]:
+        #         pargs.append(win_temp)
+        pargs.append("-w")
+        pargs.append("./Capture.pcapng")
         ## check_output　is similar with popen except that the stdout　invalid for user in check output 
         # print(pargs)
         self.input_running = True
-        shark_pid = subprocess.check_output(pargs, stdin=inputd)
+        # shark_pid = subprocess.check_output(pargs, stdin=inputd)
+        shark_pid = subprocess.Popen(pargs, stdin=inputd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+        # shark_pid = subprocess.Popen(pargs, stdin=inputd, stdout=subprocess.PIPE, stderr=None, close_fds=True)
         self.wait_subprocess.append(shark_pid)
-        self.wait_subprocess.remove(shark_pid)
+        for lineb in shark_pid.stderr:
+            line = lineb.decode("utf-8")
+            if re.search(r"\[Capture MESSAGE\] -- File:", line):
+                log(INFO, "Temp " + line.split("--")[1].strip("\r\n "))
+        shark_pid.wait()
 
     def rshark_set_pshark_cb(self, sub_args):
         self.store_types["pshark"]["arg"] = sub_args
@@ -1106,6 +1113,8 @@ class Rshark():
 
         pargs.append("-nnvv")
         # pargs.append("-X")
+        pargs.append("-s")
+        pargs.append("2048")
 
         if self.lstore["arg"] and type(self.lstore["arg"]) == dict and self.lstore["arg"]["stores"].startswith("pshark://"):
             if pshark_realtime:
@@ -1130,7 +1139,7 @@ class Rshark():
         log(INFO, "Starting sniffer@channel[{}].....".format(self.chan))
 
         try:
-            proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=None)
+            proc_tcpdump = subprocess.Popen(pargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             # self.new_eloop = asyncio.get_event_loop()
             # self.new_eloop = asyncio.new_event_loop()

@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import argparse
 from math import ceil
 import copy
@@ -40,6 +41,10 @@ if os_platform.startswith("win"):
 else:
     IPERF_PATH="iperf"
 
+
+class BreakBothLoops(Exception):
+    pass
+
 class HoverInfo:
     def __init__(self, widget, text):
         self.widget = widget
@@ -57,7 +62,7 @@ class HoverInfo:
         self.tooltip.wm_overrideredirect(True)
         self.tooltip.wm_geometry(f"+{x}+{y}")
 
-        label = ttk.Label(self.tooltip, text=self.text, background="#ffffe0", relief="solid", borderwidth=1)
+        label = tk.Label(self.tooltip, text=self.text, background="#ffffe0", relief="solid", borderwidth=1)
         label.pack(ipadx=1)
 
     def hide_tooltip(self, event=None):
@@ -107,6 +112,10 @@ class NetworkTestGUI:
         self.widgets_all.append(self.ip_entry)
         self.rows = self.rows + 1
 
+        self.pdata_max_num = 30
+        self.pdata_overflow_notify = False
+        self.pretry_all = {}
+        self.prate_all = {}
         self.pt_pre = 0
         self.pt_list = []
         self.pr_list = {}
@@ -234,6 +243,11 @@ class NetworkTestGUI:
             self.widgets_all.append(_hide)
             self.rows = self.rows + 1
 
+        self.listall_button = ttk.Button(self.mframe, text="Render&Save", command=self.list_all_presults)
+        self.listall_button.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="we")
+        self.widgets_all.append(self.listall_button)
+        self.rows = self.rows + 1
+
         # for spaces line to add mac filter with max lines == 3
         self.mac_entry_start_row = self.rows + 1
 
@@ -264,7 +278,7 @@ class NetworkTestGUI:
         self.widgets_all.append(self.stop_button)
 
         # 保存按钮
-        self.save_button = ttk.Button(self.mframe, text="Save", command=self.save)
+        self.save_button = ttk.Button(self.mframe, text="SaveConf", command=self.save)
         self.save_button.grid(row=self.rows, column=2, padx=self.widget_padx, pady=5, sticky="we")
         self.widgets_all.append(self.save_button)
 
@@ -277,6 +291,21 @@ class NetworkTestGUI:
         self.mframe.update()
 
         root.update()
+
+    def list_all_presults(self):
+        log(INFO, "Render plot & save all data to file ./pshark_cache.txt")
+        with open("./pshark_cache.txt", "w") as f:
+            # for mac1 in self.pretry_all:
+            #     for mac2 in self.pretry_all[mac1]:
+            #         f.write(mac1 + "->" + mac2 + "@" + str(self.pretry_all[mac1][mac2]) + "\n")
+            f.write("\n--retry all--\n")
+            f.write(json.dumps(self.pretry_all))
+            f.write("\n--rate all--\n")
+            f.write(json.dumps(self.prate_all))
+        # log(INFO, json.dumps(self.pretry_all))
+        # log(INFO, json.dumps(self.prate_all))
+
+        self.ashark_render()
 
     def add_mac_entry_default(self):
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
@@ -469,7 +498,12 @@ class NetworkTestGUI:
     def trigger_update_pframe_info(self, event):
         self.data_rows = 2
 
+        info_trigger_value = self.wrinfo["value" + self.trigger_pframe].get()
+
         if not self.pdframe or not self.pfframe:
+            if not info_trigger_value.startswith("pshark://"):
+                return
+
             self.wrinfo["value" + self.trigger_pframe].unbind('<<ComboboxSelected>>')
             self.sub_frames = self.ashark_new_subframes()
             self.pdframe = self.sub_frames["pd_frame"]["frame"]
@@ -483,7 +517,6 @@ class NetworkTestGUI:
             self.wrinfo["value" + self.trigger_pframe].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             self.pshow = True
         else:
-            info_trigger_value = self.wrinfo["value" + self.trigger_pframe].get()
             if info_trigger_value.startswith("pshark://"):
                 self.rshark_toggle_pframe(True)
             else:
@@ -701,6 +734,9 @@ class NetworkTestGUI:
         # print(d)
         # print(rate_db)
         # update xlabel(time)
+        self.pretry_all = d
+        self.prate_all = rate_db
+
         if self.pt_pre == 0:
             self.pt_list.append(0)
             self.pt_pre = time.time()
@@ -710,92 +746,115 @@ class NetworkTestGUI:
             self.pt_list.append(ceil(cur_diff))
             # self.pt_pre = time.time()
 
-        for mac1 in d:
-            for mac2 in d[mac1]:
-                # print(mac2)
-                # print(mac1, "->", mac2, d[mac1][mac2])
-                macs = (mac1 + mac2).replace(":", "")
-                sdata = d[mac1][mac2]
+        try:
+            for mac1 in d:
+                for mac2 in d[mac1]:
+                    # print(mac2)
+                    # print(mac1, "->", mac2, d[mac1][mac2])
+                    macs = (mac1 + mac2).replace(":", "")
+                    sdata = d[mac1][mac2]
 
-                # self.ptitle_fields = {"data_mgmt": 0, "ack": 1, "rts": 2, "cts": 3}
-                # self.psub_fields = ["rssi", "counts", "retry"]
+                    # self.ptitle_fields = {"data_mgmt": 0, "ack": 1, "rts": 2, "cts": 3}
+                    # self.psub_fields = ["rssi", "counts", "retry"]
 
-                if not macs in self.data_boxs:
-                    # print(data[mac1][mac2])
-                    if self.data_rows > 30:
-                        continue
-                    self.data_boxs[macs] = tk.StringVar()
-                    self.data_boxs[macs].trace_add("write", lambda *args: self.on_text_change(macs, *args))
-                    self.data_boxs[macs].set(mac1+"->"+mac2)
-                    self.data_boxs[macs + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[macs], state="readonly", width=32)
-                    self.data_boxs[macs + "v"].grid(row=self.data_rows, column=self.pframe_start_col, padx=0, pady=5, sticky="ew")
-                    self.data_boxs[macs + "r"] = self.data_rows
-                    self.data_rows = self.data_rows + 1
+                    if not macs in self.data_boxs:
+                        # print(data[mac1][mac2])
+                        if self.data_rows > self.pdata_max_num:
+                            # raise BreakBothLoops
 
-                self.push_retry_plot_data(mac1, mac2, sdata)
+                            if not self.pdata_overflow_notify:
+                                self.pdata_overflow_notify = True
+                                log(WARNING, "Got too much results, skip some, You may:")
+                                log(WARNING, "\tPlease add mac filter!")
+                                log(WARNING, "\tPlease show result in terminal via press button \"Render&Save\"!")
 
-                # print(sdata)
-                # for pkt_filed in sdata:
-                for pkt_filed in self.ptitle_fields:
-                    # print(pkt_filed)
-                    rssiv = macs + "rssi" + pkt_filed
-                    rssiv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("rssi")
-                    # print("rssiv colum: ", rssiv_column)
+                            continue
 
-                    if rssiv in self.data_boxs:
-                        if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
-                            self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
-                    else:
-                        self.data_boxs[rssiv] = tk.StringVar()
-                        # self.data_boxs[rssiv].set(round(int(data[mac1][mac2]["rssi"]) / int(data[mac1][mac2]["rssi_cnt"]), 2))
-                        if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
-                            self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
+                        self.data_boxs[macs] = tk.StringVar()
+                        self.data_boxs[macs].trace_add("write", lambda *args: self.on_text_change(macs, *args))
+                        self.data_boxs[macs].set(mac1+"->"+mac2)
+                        self.data_boxs[macs + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[macs], state="readonly", width=32)
+                        self.data_boxs[macs + "v"].grid(row=self.data_rows, column=self.pframe_start_col, padx=0, pady=5, sticky="ew")
+                        self.data_boxs[macs + "r"] = self.data_rows
+                        self.data_rows = self.data_rows + 1
+
+                    self.push_retry_plot_data(mac1, mac2, sdata)
+
+                    # print(sdata)
+                    # for pkt_filed in sdata:
+                    for pkt_filed in self.ptitle_fields:
+                        # print(pkt_filed)
+                        rssiv = macs + "rssi" + pkt_filed
+                        rssiv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("rssi")
+                        # print("rssiv colum: ", rssiv_column)
+
+                        if rssiv in self.data_boxs:
+                            if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
+                                self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
                         else:
-                            self.data_boxs[rssiv].set("")
-                        self.data_boxs[rssiv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[rssiv], state="readonly", width=8, justify="center")
-                        self.data_boxs[rssiv + "v"].grid(row=self.data_boxs[macs + "r"], column=rssiv_column, padx=0, pady=5, sticky="ew")
+                            self.data_boxs[rssiv] = tk.StringVar()
+                            # self.data_boxs[rssiv].set(round(int(data[mac1][mac2]["rssi"]) / int(data[mac1][mac2]["rssi_cnt"]), 2))
+                            if pkt_filed in sdata and int(sdata[pkt_filed]["rssi_cnt"]) != 0:
+                                self.data_boxs[rssiv].set(round(int(sdata[pkt_filed]["rssi"]) / int(sdata[pkt_filed]["rssi_cnt"]), 2))
+                            else:
+                                self.data_boxs[rssiv].set("")
+                            self.data_boxs[rssiv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[rssiv], state="readonly", width=8, justify="center")
+                            self.data_boxs[rssiv + "v"].grid(row=self.data_boxs[macs + "r"], column=rssiv_column, padx=0, pady=5, sticky="ew")
 
-                    cntv = macs + "cnts" + pkt_filed
-                    cntv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("cnt")
-                    # print("cntv_column: ", cntv_column)
+                        cntv = macs + "cnts" + pkt_filed
+                        cntv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("cnt")
+                        # print("cntv_column: ", cntv_column)
 
-                    if cntv in self.data_boxs:
-                        if pkt_filed in sdata: 
-                            self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
-                    else:
-                        self.data_boxs[cntv] = tk.StringVar()
-                        if pkt_filed in sdata: 
-                            self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
+                        if cntv in self.data_boxs:
+                            if pkt_filed in sdata: 
+                                self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
                         else:
-                            self.data_boxs[cntv].set("")
+                            self.data_boxs[cntv] = tk.StringVar()
+                            if pkt_filed in sdata: 
+                                self.data_boxs[cntv].set(int(sdata[pkt_filed]["cnt"]))
+                            else:
+                                self.data_boxs[cntv].set("")
 
-                        self.data_boxs[cntv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[cntv], state="readonly", width=8, justify="center")
-                        self.data_boxs[cntv + "v"].grid(row=self.data_boxs[macs + "r"],
-                                                        column=cntv_column, padx=0, pady=5, sticky="ew")
+                            self.data_boxs[cntv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[cntv], state="readonly", width=8, justify="center")
+                            self.data_boxs[cntv + "v"].grid(row=self.data_boxs[macs + "r"],
+                                                            column=cntv_column, padx=0, pady=5, sticky="ew")
 
-                    retryv = macs + "retry" + pkt_filed
-                    retryv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("retry")
-                    # print("retryv_column: ", retryv_column)
+                        retryv = macs + "retry" + pkt_filed
+                        retryv_column = self.title_sub_start_column + self.ptitle_fields[pkt_filed] * len(self.psub_fields) + self.psub_fields.index("retry")
+                        # print("retryv_column: ", retryv_column)
 
-                    if retryv in self.data_boxs:
-                        if pkt_filed in sdata: 
-                            self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
-                    else:
-                        self.data_boxs[retryv] = tk.StringVar()
-                        if pkt_filed in sdata: 
-                            self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
+                        if retryv in self.data_boxs:
+                            if pkt_filed in sdata: 
+                                self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
                         else:
-                            self.data_boxs[retryv].set("")
-                        self.data_boxs[retryv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[retryv], state="readonly", width=8, justify="center")
-                        self.data_boxs[retryv + "v"].grid(row=self.data_boxs[macs + "r"],
-                                                            column=retryv_column, padx=0, pady=5, sticky="ew")
+                            self.data_boxs[retryv] = tk.StringVar()
+                            if pkt_filed in sdata: 
+                                self.data_boxs[retryv].set(int(sdata[pkt_filed]["retry"]))
+                            else:
+                                self.data_boxs[retryv].set("")
+                            self.data_boxs[retryv + "v"] = ttk.Entry(self.pdframe, textvariable=self.data_boxs[retryv], state="readonly", width=8, justify="center")
+                            self.data_boxs[retryv + "v"].grid(row=self.data_boxs[macs + "r"],
+                                                                column=retryv_column, padx=0, pady=5, sticky="ew")
 
+        except BreakBothLoops:
+            pass
+            # if not self.pdata_overflow_notify:
+            #     self.pdata_overflow_notify = True
+            #     log(WARNING, "Got too much results, skip some, You may:")
+            #     log(WARNING, "\tPlease add mac filter!")
+            #     log(WARNING, "\tPlease show result in terminal via press button \"ListAll\"!")
+
+        # self.ashark_render()
+
+    def ashark_render(self):
         self.update_plot()
 
         prate_frame = self.pfframe["prate_retry_frame"]
-        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", rate_db)
+        # self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", rate_db)
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", self.prate_all)
         prate_frame = self.pfframe["prate_frame"]
-        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", rate_db)
+        # self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", rate_db)
+        self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", self.prate_all)
 
     def plot_color_handle(self, method):
         if method == "RESET":
@@ -853,16 +912,18 @@ class NetworkTestGUI:
 
     def push_retry_plot_data(self, mac1, mac2, data_info):
         '''
-        plot data retry except mgmt, ctrol frame etc.
+        plot unicast data&mgmt retry
         '''
         # print(mac1, mac2)
-        if not "data" in data_info:
+        if not "data" in data_info and not "mgmt" in data_info:
             return
 
         if len(self.pt_list) == 0:
             return
 
-        d = data_info["data"]
+        cnt_retry = 0
+        cnt_retry = data_info["data"]["retry"] if "data" in data_info else 0
+        cnt_retry += data_info["mgmt"]["retry"] if "mgmt" in data_info else 0
 
         if mac1.lower() == "none" or mac2.lower() == "none":
             return
@@ -882,7 +943,7 @@ class NetworkTestGUI:
         # print(target, self.pt_list, self.pr_list[target]["pdata"])
 
         # print(self.pt_list, self.pr_list)
-        self.pr_list[target]["pdata"].append(d["retry"])
+        self.pr_list[target]["pdata"].append(cnt_retry)
         # print(target, self.pt_list, self.pr_list[target]["pdata"])
 
     def update_bar(self, root, canvas, bar_ax, field, d):
@@ -955,6 +1016,14 @@ class NetworkTestGUI:
             messagebox.showinfo("Information", "Already is running and please stop first!")
             return
 
+        self.pretry_all = {}
+        self.prate_all = {}
+        self.pt_pre = 0
+        self.pt_list = []
+        self.pr_list = {}
+        self.prc_list = []
+        self.plot_color_handle("RESET")
+
         self.client_button.configure(state="disabled")
         self.stop_button.configure(state="active")
 
@@ -995,7 +1064,7 @@ class NetworkTestGUI:
             self.sharkd.rshark_set_pshark_cb(sub_args)
             self.sharkd.rshark_sniffer()
         except Exception as e:
-        # except KeyboardInterrupt:
+        # except KeyboardInterrupt as e:
             log(ERROR, f"Rshark connect/start sniffer device failed, please check device's power or system version, {e}!")
             self.stop()
 
@@ -1027,11 +1096,7 @@ class NetworkTestGUI:
         self.client_button.configure(state="active")
         self.stop_button.configure(state="disabled")
 
-        self.pt_pre = 0
-        self.pt_list = []
-        self.pr_list = {}
-        self.prc_list = []
-        self.plot_color_handle("RESET")
+        self.pdata_overflow_notify = False
 
     def __del__(self):
         self.running = False
