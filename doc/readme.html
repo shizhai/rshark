@@ -1078,9 +1078,9 @@ body .markdown-body
 .highlight .gc{color:#999;background-color:#EAF2F5}
 </style><title>readme</title></head><body><article class="markdown-body"><div class="toc">
 <ul>
-<li><a href="#ashark-asrd-for-windows">ashark &amp; asrd for Windows</a><ul>
+<li><a href="#windows">windows直接访问</a><ul>
 <li><a href="#it">IT部分</a><ul>
-<li><a href="#windows">windows系统环境</a></li>
+<li><a href="#windows_1">windows系统环境</a></li>
 </ul>
 </li>
 <li><a href="#user">User部分</a><ul>
@@ -1093,13 +1093,21 @@ body .markdown-body
 </li>
 </ul>
 </div>
-<h1 id="ashark-asrd-for-windows">ashark &amp; asrd for Windows<a class="headerlink" href="#ashark-asrd-for-windows" title="Permanent link"></a></h1>
+<h1 id="windows">windows直接访问<a class="headerlink" href="#windows" title="Permanent link"></a></h1>
 <h2 id="it">IT部分<a class="headerlink" href="#it" title="Permanent link"></a></h2>
-<h3 id="windows">windows系统环境<a class="headerlink" href="#windows" title="Permanent link"></a></h3>
+<h3 id="windows_1">windows系统环境<a class="headerlink" href="#windows_1" title="Permanent link"></a></h3>
+<p>依赖的软件python与wireshark已经在本文件同级目录提供</p>
 <ul>
-<li>安装最新版本wireshark,<strong>并创建开始菜单</strong></li>
+<li>
+<p>安装python3.8，并在安装过程中选择自动添加进环境变量</p>
+</li>
+<li>
+<p>安装最新版本wireshark,<strong>并创建开始菜单</strong></p>
+</li>
 </ul>
 <h2 id="user">User部分<a class="headerlink" href="#user" title="Permanent link"></a></h2>
+<ol>
+<li>
 <p>使用notepad++编辑“clients”，按照格式要求修改为用于抓包的设备，目前支持openwrt与ubuntu</p>
 <blockquote>
 <ul>
@@ -1113,13 +1121,25 @@ body .markdown-body
 <li>intf(s): 抓包设备支持的所有接口列表，使用&rdquo;,&rdquo;隔开，若未传入参数，则默认使用第一个接口</li>
 </ul>
 </blockquote>
+</li>
+<li>
+<p>当前clients中默认填入了一些示例设备，USER需要根据自己的情况进行修改</p>
+</li>
+</ol>
 <h3 id="rd">RD模式使用说明<a class="headerlink" href="#rd" title="Permanent link"></a></h3>
 <ul>
-<li>ashark.exe用于图形界面与命令行参数<blockquote>
-<p>鼠标双击打开ashark.exe</p>
-<p>修改clients配置文件，一个clients配置文件可以添加多台设备</p>
-<p>打开软件后可以通过下拉列表选择目标sniffer设备</p>
-<p>参考ashark &ndash;help传入对应参数，一个CMD窗口仅支持一台sniffer设备</p>
+<li>
+<p>鼠标双击打开rshark.exe</p>
+<blockquote>
+<p>修改clients配置文件，一个clients配置文件仅支持一台设备</p>
+<p>对于多台sniffer 设备，可以拷贝此目录，修改clients，再打开</p>
+</blockquote>
+</li>
+<li>
+<p>命令行参数打开 rshark.exe</p>
+<blockquote>
+<p>参考rshark -h传入对应参数，一个CMD窗口仅支持一台sniffer设备</p>
+<p>对于多台sniffer 设备，对每台设备打开CMD窗口，通过传入不同参数打开</p>
 </blockquote>
 </li>
 </ul>
@@ -1129,109 +1149,6 @@ body .markdown-body
 <li>修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可</li>
 </ul>
 <h2 id="_1">版本历史<a class="headerlink" href="#_1" title="Permanent link"></a></h2>
-<p>v3.5.2 <a class="magiclink magiclink-github magiclink-repository" href="https://github.com/2023/12" title="GitHub Repository: 2023/12">2023/12</a>/29 <br></p>
-<blockquote>
-<p>add zoom in/out for plot<br>
-add requirement.txt for python dependances<br>
-print packet sniffer per second in terminal<br></p>
-</blockquote>
-<p>v3.5.1 <a class="magiclink magiclink-github magiclink-repository" href="https://github.com/2023/12" title="GitHub Repository: 2023/12">2023/12</a>/28 <br></p>
-<blockquote>
-<p>add support write parsed data back to csv file<br>
-add support progressbar to indicate the plot &amp; write back progress<br>
-add async support for render<br></p>
-</blockquote>
-<p>v3.4.4 <a class="magiclink magiclink-github magiclink-repository" href="https://github.com/2023/12" title="GitHub Repository: 2023/12">2023/12</a>/27 <br></p>
-<blockquote>
-<p>render plot by press the button instead of automatically while it cost too much time<br></p>
-</blockquote>
-<p>v3.4.3 <a class="magiclink magiclink-github magiclink-repository" href="https://github.com/2023/12" title="GitHub Repository: 2023/12">2023/12</a>/27 <br></p>
-<blockquote>
-<p>add support to list all for pshark<br>
-fix LOG color fail for INFO<br>
-remove some useless log<br>
-fix store to wireshark persist file fail with split to 4096GB for each file</p>
-</blockquote>
-<p>v3.4.2 <a class="magiclink magiclink-github magiclink-repository" href="https://github.com/2023/12" title="GitHub Repository: 2023/12">2023/12</a>/26 <br></p>
-<blockquote>
-<p>fix log output miss timestamp and color<br>
-fix parse windows generated at startup, we should generate at right time<br></p>
-</blockquote>
-<p>v3.4.1</p>
-<blockquote>
-<p>add support to save sniffer device info</p>
-</blockquote>
-<p>v3.3.6</p>
-<blockquote>
-<p>fix winget resize issues</p>
-<p>use win style align to windows</p>
-</blockquote>
-<p>v3.3.5</p>
-<blockquote>
-<p>fix can&rsquo;t exit asrd by press keyboard ctrl+c</p>
-</blockquote>
-<p>v3.3.4</p>
-<blockquote>
-<p>fix mac filter fail for asrd: <a href="http://10.17.7.29:8000/?cmd=start&amp;ip=192.168.8.1&amp;interface=mon1&amp;macs=d4:da:21:5c:e6:b6,60:55:f9:f7:2a:88">http://10.17.7.29:8000/?cmd=start&amp;ip=192.168.8.1&amp;interface=mon1&amp;macs=d4:da:21:5c:e6:b6,60:55:f9:f7:2a:88</a></p>
-</blockquote>
-<p>v3.3.3</p>
-<blockquote>
-<p>fix access file server in asrd fail as no root_dir passed</p>
-</blockquote>
-<p>v3.3.2</p>
-<blockquote>
-<p>fix wireshark startup fail as use r&rdquo;&ldquo;</p>
-</blockquote>
-<p>v3.3.1</p>
-<blockquote>
-<p>add retry count for each rate</p>
-<p>add pkt count for each rate</p>
-<p>fix miss mgmt(assoc/auth) frame when pshark on the fly</p>
-</blockquote>
-<p>v3.2.2</p>
-<blockquote>
-<p>add support to retry counts tendancy chart</p>
-<p>add restart feature for asrd when firewall of windows kill us</p>
-</blockquote>
-<p>v3.1.1</p>
-<blockquote>
-<p>support windows GUI</p>
-<p>merge rshark with ashark to ashark to support cmd line and GUI</p>
-<p>fix parse online fail when too many pkt arrived</p>
-</blockquote>
-<p>v2.1.1</p>
-<blockquote>
-<p>add pshark support to parse rx performance</p>
-</blockquote>
-<p>v2.0.1</p>
-<blockquote>
-<p>add support widget support for user input info</p>
-<p>add support iperf client support</p>
-<p>ashark for widget, rshark for cli command, asrd for QA web request</p>
-</blockquote>
-<p>v1.6.1</p>
-<blockquote>
-<p>add netester support for DUT RX performance analize</p>
-</blockquote>
-<p>v1.5.1</p>
-<blockquote>
-<p>add extract default sniffer devices list from clients for rshark</p>
-<p>move temp store dir to current dir</p>
-</blockquote>
-<p>v1.4.4</p>
-<blockquote>
-<p>fix store capture file with wrong name issue</p>
-<p>fix pshark issues that cann&rsquo;t filter pkts</p>
-</blockquote>
-<p>v1.4.1</p>
-<blockquote>
-<p>fix wrong time stamp to sniffer log when target system is running offline by sync time to peer</p>
-<p>add GUI for rshark to input target’s infomation</p>
-</blockquote>
-<p>v1.3.4</p>
-<blockquote>
-<p>fix time cost too long when use openwrt sniffer device to start capture</p>
-</blockquote>
 <p>v1.3.3</p>
 <blockquote>
 <p>fix host not found cause application hang while running asrd</p>

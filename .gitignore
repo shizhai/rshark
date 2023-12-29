@@ -2,8 +2,8 @@ __pycache__
 remote/*
 venv
 stores
-asrd.log
-asrd.spec
+*.log
+*.spec
 dist
 build
 *.swp

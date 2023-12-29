@@ -33,7 +33,7 @@ gheight_min = gheight
 
 right_left_size = gwidth - 570
 
-clients_file = "./clients"
+clients_file = "./files/clients"
 
 IPERF_PATH=None
 if os_platform.startswith("win"):
@@ -41,8 +41,25 @@ if os_platform.startswith("win"):
 else:
     IPERF_PATH="iperf"
 
+def rate_sort(rate):
+    if type(rate) == int or type(rate) == float:
+        return rate
+    elif rate.startswith("MCS"):
+        return int(rate[3:]) + 255
+    elif rate.isdigit():
+        return float(rate)
+    else:
+        r = re.compile(r"\d+\.\d+")
+        rm = r.search(rate).group()
+        if rm:
+            return float(rm)
+        else:
+            return float("inf")
 
 class BreakBothLoops(Exception):
+    pass
+
+class ForceExit(Exception):
     pass
 
 class HoverInfo:
@@ -121,6 +138,10 @@ class NetworkTestGUI:
         self.pr_list = {}
         self.prc_list = []
         self.plot_color_handle("RESET")
+        # {retry, cnt}
+        self.prate_mac_rate_map = {}
+        # [rate1, rate2, ....]
+        self.prate_mac_rate_map_indexs = []
 
         # self.pframe_start_row = 0
         # self.pframe_start_col = 3
@@ -246,6 +267,27 @@ class NetworkTestGUI:
         self.listall_button = ttk.Button(self.mframe, text="Render&Save", command=self.list_all_presults)
         self.listall_button.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="we")
         self.widgets_all.append(self.listall_button)
+
+        # self.style = ttk.Style()
+
+        # # 设置 TProgressbar.trough 样式
+        # self.style.configure("TProgressbar.trough",
+        #                      background="red",  # 进度条底色
+        #                      )
+
+        # # 设置 TProgressbar.pbar 样式
+        # self.style.configure("TProgressbar.pbar",
+        #                      thickness=5,  # 进度条的粗细
+        #                      color="green",  # 进度条的颜色
+        #                      )
+        
+        self.render_progress = ttk.Progressbar(self.mframe, orient="horizontal", length=300, mode="determinate")
+
+        self.render_progress.grid(row=self.rows, column=1, columnspan=2, padx=0, pady=10, sticky="wens")
+        self.render_progress["maximum"] = 100
+        self.render_progress["value"] = 0
+        self.render_progress_diff = {"retry":25, "rate_retry":35, "rate_cnts":30, "wrteback":10}
+
         self.rows = self.rows + 1
 
         # for spaces line to add mac filter with max lines == 3
@@ -278,7 +320,7 @@ class NetworkTestGUI:
         self.widgets_all.append(self.stop_button)
 
         # 保存按钮
-        self.save_button = ttk.Button(self.mframe, text="SaveConf", command=self.save)
+        self.save_button = ttk.Button(self.mframe, text="SaveSnifferInfo", command=self.save)
         self.save_button.grid(row=self.rows, column=2, padx=self.widget_padx, pady=5, sticky="we")
         self.widgets_all.append(self.save_button)
 
@@ -298,19 +340,42 @@ class NetworkTestGUI:
             log(ERROR, "Please select stores to pshark://. first")
             return
 
-        log(INFO, "Render plot & save all data to file ./pshark_cache.txt")
-        with open("./pshark_cache.txt", "w") as f:
-            # for mac1 in self.pretry_all:
-            #     for mac2 in self.pretry_all[mac1]:
-            #         f.write(mac1 + "->" + mac2 + "@" + str(self.pretry_all[mac1][mac2]) + "\n")
-            f.write("\n--retry all--\n")
-            f.write(json.dumps(self.pretry_all))
-            f.write("\n--rate all--\n")
-            f.write(json.dumps(self.prate_all))
-        # log(INFO, json.dumps(self.pretry_all))
-        # log(INFO, json.dumps(self.prate_all))
+        self.render_progress["value"] = 0
+
+        # log(INFO, "Save Raw data to file ./pshark_cache.txt!")
+        # with open("./pshark_cache.txt", "w") as f:
+        #     f.write("\n--retry all--\n")
+        #     f.write(json.dumps(self.pretry_all))
+        #     f.write("\n--rate all--\n")
+        #     f.write(json.dumps(self.prate_all))
 
         self.ashark_render()
+
+        log(INFO, "Plot update done!")
+
+        # mac_rates_dict[mac][categories.index(category)] = d[category][mac][field]
+
+        save_file = "./pshark_parse.csv"
+
+        log(INFO, f"Render plot & save data to file {save_file} for parsed data!")
+
+        with open(save_file, "w") as f:
+            f.write("-,Retry Trend,-\n")
+            f.write("," + f",".join((str(t) for t in self.pt_list)) + "\n")
+            for m in self.pr_list:
+                f.write(m + "," + f",".join((str(tv) for tv in self.pr_list[m]["pdata"])) + "\n")
+
+            prate_selects = ["retry", "cnts"]
+
+            for selecti in prate_selects:
+                f.write("-," + selecti + " Rate,-\n")
+                f.write("," + f",".join(self.prate_mac_rate_map_indexs) + "\n")
+
+                for rr in self.prate_mac_rate_map[selecti]:
+                    f.write(str(rr) + "," + f",".join((str(tv) for tv in self.prate_mac_rate_map[selecti][rr])) + "\n")
+
+        log(INFO, "Write back update done!")
+        self.render_progress["value"] = 100
 
     def add_mac_entry_default(self):
         info_trigger_value = self.wrinfo["value" + self.trigger_item].get()
@@ -513,7 +578,9 @@ class NetworkTestGUI:
             self.sub_frames = self.ashark_new_subframes()
             self.pdframe = self.sub_frames["pd_frame"]["frame"]
             self.pfframe = self.sub_frames["parse_frame"]
-            self.sub_frames["parse_frame"]["pretry_frame"]["figure"].canvas.mpl_connect('scroll_event', self.fig_on_scroll_event)
+            self.sub_frames["parse_frame"]["pretry_frame"]["figure"].canvas.mpl_connect('scroll_event', self.fig_on_scroll_retry)
+            self.sub_frames["parse_frame"]["prate_frame"]["canvas"].mpl_connect('scroll_event', self.fig_on_scroll_rate)
+            self.sub_frames["parse_frame"]["prate_retry_frame"]["canvas"].mpl_connect('scroll_event', self.fig_on_scroll_rate_retry)
 
             # create pdframe
             self.pfframe.update()
@@ -759,6 +826,8 @@ class NetworkTestGUI:
                     macs = (mac1 + mac2).replace(":", "")
                     sdata = d[mac1][mac2]
 
+                    self.push_retry_plot_data(mac1, mac2, sdata)
+
                     # self.ptitle_fields = {"data_mgmt": 0, "ack": 1, "rts": 2, "cts": 3}
                     # self.psub_fields = ["rssi", "counts", "retry"]
 
@@ -782,8 +851,6 @@ class NetworkTestGUI:
                         self.data_boxs[macs + "v"].grid(row=self.data_rows, column=self.pframe_start_col, padx=0, pady=5, sticky="ew")
                         self.data_boxs[macs + "r"] = self.data_rows
                         self.data_rows = self.data_rows + 1
-
-                    self.push_retry_plot_data(mac1, mac2, sdata)
 
                     # print(sdata)
                     # for pkt_filed in sdata:
@@ -849,17 +916,25 @@ class NetworkTestGUI:
             #     log(WARNING, "\tPlease add mac filter!")
             #     log(WARNING, "\tPlease show result in terminal via press button \"ListAll\"!")
 
-        # self.ashark_render()
+        self.ashark_render()
 
     def ashark_render(self):
+        self.render_progress["value"] = 0
+        sort_prate_all = ({k:self.prate_all[k] for k in sorted(self.prate_all, key=rate_sort)})
+        self.prate_all = sort_prate_all
+
         self.update_plot()
+
+        # print(self.render_progress["value"])
 
         prate_frame = self.pfframe["prate_retry_frame"]
         # self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", rate_db)
         self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "retry", self.prate_all)
         prate_frame = self.pfframe["prate_frame"]
+        # print(self.render_progress["value"])
         # self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", rate_db)
         self.update_bar(self.pfframe["root"], prate_frame["canvas"], prate_frame["plot"], "cnts", self.prate_all)
+        # print(self.render_progress["value"])
 
     def plot_color_handle(self, method):
         if method == "RESET":
@@ -877,29 +952,45 @@ class NetworkTestGUI:
         else:
             return len(self.prc_list)
 
-    def fig_on_scroll_event(self, event):
+    def fig_on_scroll_retry(self, event):
+        self.fig_on_scroll_event(self.pfframe["pretry_frame"], True, event)
+
+    def fig_on_scroll_rate(self, event):
+        self.fig_on_scroll_event(self.pfframe["prate_frame"], False, event)
+
+    def fig_on_scroll_rate_retry(self, event):
+        self.fig_on_scroll_event(self.pfframe["prate_retry_frame"], False, event)
+
+    def fig_on_scroll_event(self, frame, isy, event):
         # print(event)
         zoom_factor = 1.2 if event.step > 0 else 1 / 1.2
         x, y = event.xdata, event.ydata
         if not x or not y:
             return
 
-        pretry_frame = self.pfframe["pretry_frame"]
-        new_xlim = [x - (x - pretry_frame["plot"].get_xlim()[0]) / zoom_factor,
-                    x + (pretry_frame["plot"].get_xlim()[1] - x) / zoom_factor]
-        new_ylim = [y - (y - pretry_frame["plot"].get_ylim()[0]) / zoom_factor,
-                    y + (pretry_frame["plot"].get_ylim()[1] - y) / zoom_factor]
-        pretry_frame["plot"].set_xlim(new_xlim)
-        pretry_frame["plot"].set_ylim(new_ylim)
+        new_xlim = [x - (x - frame["plot"].get_xlim()[0]) / zoom_factor,
+                    x + (frame["plot"].get_xlim()[1] - x) / zoom_factor]
+
+        frame["plot"].set_xlim(new_xlim)
+        if isy:
+            new_ylim = [y - (y - frame["plot"].get_ylim()[0]) / zoom_factor,
+                        y + (frame["plot"].get_ylim()[1] - y) / zoom_factor]
+            frame["plot"].set_ylim(new_ylim)
 
         # 重新绘制图形
-        pretry_frame["canvas"].draw()
+        frame["canvas"].draw()
 
     def update_plot(self):
         # print(self.pr_list)
         pretry_frame = self.pfframe["pretry_frame"]
         pretry_frame["plot"].clear()
+        pr_list_len = len(self.pr_list)
+        if pr_list_len == 0:
+            return
+
+        pr_list_len_diff = (self.render_progress_diff["retry"] / pr_list_len)
         for item in self.pr_list:
+            self.render_progress["value"] += pr_list_len_diff
             # print(item, self.pr_list[item]["pdata"])
             # 清除当前图形并绘制新数据
             # pretry_frame["plot"].plot(self.pt_list, self.pr_list[item]["pdata"], c=self.pr_list[item]["color"], ls='-', marker='.', mec='b', mfc='w', label=item)
@@ -981,10 +1072,16 @@ class NetworkTestGUI:
                 if mac in d[category]:
                     mac_rates_dict[mac][categories.index(category)] = d[category][mac][field]
         
+        self.prate_mac_rate_map[field] = mac_rates_dict
+        self.prate_mac_rate_map_indexs = categories
+
         mac_rates_mac_list = list(mac_rates_dict.keys())
 
         bars = []
+        mac_rates_mac_list_len = len(mac_rates_mac_list)
+        mac_rates_mac_list_len_diff = (self.render_progress_diff["rate_"+field] / mac_rates_mac_list_len)
         for mac in mac_rates_mac_list:
+            self.render_progress["value"] += mac_rates_mac_list_len_diff
             i = mac_rates_mac_list.index(mac)
             bars.append(bar_ax.bar([j + i * bar_width for j in bar_positions], mac_rates_dict[mac], width=bar_width, label=mac, align='edge'))
 
@@ -1001,7 +1098,6 @@ class NetworkTestGUI:
                 yval = bar.get_height()
                 bar_ax.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), ha='center', va='bottom')
 
-
         # 配置 mplcursors
         cursor = mplcursors.cursor(hover=True)
 
@@ -1017,6 +1113,7 @@ class NetworkTestGUI:
         root.update()
 
     def start_run(self):
+        self.render_progress["value"] = 0
         self.start_client()
 
     def start_client(self):
@@ -1072,14 +1169,14 @@ class NetworkTestGUI:
             sub_args = {"cb": self.update_data, "eloop": self.event_loop, "stores": msgbox_info["stores"]}
             self.sharkd.rshark_set_pshark_cb(sub_args)
             self.sharkd.rshark_sniffer()
-        except Exception as e:
-        # except KeyboardInterrupt as e:
+        # except Exception as e:
+        except KeyboardInterrupt as e:
             log(ERROR, f"Rshark connect/start sniffer device failed, please check device's power or system version, {e}!")
             self.stop()
 
     def run_client(self):
         # sniffer has to be started first
-        while not hasattr(self, "sharkd") or not self.sharkd.input_running:
+        while not hasattr(self, "sharkd") or not self.sharkd or not self.sharkd.input_running:
             time.sleep(0.1)
 
         log(INFO, "Ready to send pkts...")
@@ -1177,7 +1274,7 @@ class NetTestClient:
                     self.total_tx_cnts = int(rv) + self.total_tx_cnts
 
                 self.stats["tx_rate"].set(str(result).split("Bytes")[1].strip(" "))
-                self.stats["tx_cnts"].set(str(self.total_tx_cnts))
+                self.stats["tx_cnts"].set(str(int(self.total_tx_cnts)) + " Bytes")
                 self.stats["running_time"].set("{:.2f} s".format(round(time.time() - self.start_time), 2))
 
             log(WARNING, "Stop event captured in TG!")

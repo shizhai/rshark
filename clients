@@ -1,5 +1,0 @@
-# user, pass, port, ip, use tunnel, type(openwrt, ubuntu), chan, intf(s)
-# 对于asrd（http模式）,若设备支持多网卡,则逗号隔开，http请求时传入对应的网卡即可，以限制http接口请求错误的网卡
-# 对于ASRD（http模式）,use tunnel设置为0，否则设置为1
-root!12345678!22!192.168.8.1!1!openwrt!1!mon1!wireshark://.
-root!12345678!22!10.17.7.28!1!ubuntu!1!wlan0mon,wlan1mon,wlan2mon

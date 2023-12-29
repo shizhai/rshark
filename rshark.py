@@ -5,6 +5,7 @@ import re
 import threading
 import time
 import sys
+import copy
 import queue
 import os
 import subprocess
@@ -255,6 +256,7 @@ class Rshark():
         self.new_eloop = None
         self.pipc = None
         self.data_cache = {}
+        self.data_handle_queue = queue.Queue(maxsize=50)
         self.rate_db = {}
         self.rip = rip
         self.rport = rport
@@ -874,6 +876,13 @@ class Rshark():
             return rets
 
     def rshark_store_pyshark_quick_parse(self, arg, inputd):
+        if arg and type(arg) == dict and callable(arg["cb"]):
+            # self.rshark_handle_data_coroutine = self.rshark_handle_data(arg)
+            # self.rshark_handle_data_eloop = asyncio.new_event_loop()
+            # self.rshark_handle_data_task = self.rshark_handle_data_eloop.create_task(self.rshark_handle_data_coroutine)
+            # self.rshark_handle_data_eloop.run_until_complete(self.rshark_handle_data_task)
+            threading.Thread(target=self.rshark_handle_data, kwargs=arg).start()
+
         leggal_start = re.compile(r'\d+us', re.I)
 
         # please refer: tcpdump source code @ print-802_11.c
@@ -998,13 +1007,6 @@ class Rshark():
 
             self.input_running = True
 
-            # self.total_cap = self.total_cap + 1
-            # cur_time = time.time()
-            # if (round(cur_time - self.time_prev)) > 1:
-            #     print("Rate:{:8.2f} pps /w {:8} pkts @ {:8.2f} s".format(round(self.total_cap / (cur_time - self.time_start), 2),
-            #                                           self.total_cap, round(cur_time - self.time_start, 2)))
-            #     self.time_prev = cur_time
-
             prev_len = len(self.data_cache)
             # def rshark_parse_lines(self, line, rclass_reg_list, rclass_list, rclass_names, regs):
             retes = self.rshark_parse_lines(line, rclass_reg_list=rclass_reg_list, rclass_list=rclass_list, rclass_names=rclass_names, regs=regs)
@@ -1014,6 +1016,10 @@ class Rshark():
             if not self.rshark_filter_pmacs(retes["ta"],retes["ra"]):
                 continue
 
+            if retes["dot11_frame_type"] == "data":
+                self.total_cap = self.total_cap + 1
+                self.rshark_sniffer_rate()
+
             # def rshark_store_addb(self, ta, ra, rssi, dot11_frame_type, retry):
             self.rshark_store_addb(retes["ta"], retes["ra"], retes["rssi"], retes["dot11_frame_type"], retes["retry"])
 
@@ -1022,7 +1028,16 @@ class Rshark():
             if time.time() - pre_time > 3:
                 if display_realtime:
                     if arg and type(arg) == dict and callable(arg["cb"]):
-                        arg["cb"](self.data_cache, self.rate_db)
+                        # arg["cb"](self.data_cache, self.rate_db)
+                        arg_handle = {}
+                        arg_handle["data_cache"] = copy.deepcopy(self.data_cache)
+                        arg_handle["rate_db"] = copy.deepcopy(self.rate_db)
+                        try:
+                            self.data_handle_queue.put(arg_handle)
+                        except queue.Full:
+                            self.data_handle_queue.get()
+                            log(WARNING, "Plot overflow ~ drop the oldest data!")
+                            self.data_handle_queue.put(arg_handle)
                     else:
                         with open("presults.txt", "+w") as f:
                             for mac1 in self.data_cache:
@@ -1039,6 +1054,27 @@ class Rshark():
 
             if len(self.data_cache) < prev_len:
                 raise
+
+    def rshark_sniffer_rate(self):
+        cur_time = time.time()
+        if (round(cur_time - self.time_prev)) > 1:
+            log(INFO, r"Data Frame Rate:{:8.2f} pps /w {:8} pkts @ {:8.2f} s".format(round(self.total_cap / (cur_time - self.time_start), 2),
+                                                  self.total_cap, round(cur_time - self.time_start, 2)))
+            self.time_prev = cur_time
+
+    def rshark_handle_data(self, **arg):
+        while True:
+            data_handle = {}
+            try:
+                data_handle = self.data_handle_queue.get(block=True, timeout=0.2)
+            except queue.Empty:
+                pass
+
+            if self.rshark_check_event():
+                break
+
+            if data_handle:
+                arg["cb"](data_handle["data_cache"], data_handle["rate_db"])
 
     def rshark_sniffer_pre(self):
         #key sync

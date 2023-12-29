@@ -14,6 +14,8 @@ from log import *
 
 from functools import partial
 
+clients_file = ["./clients", "./files/clients"]
+
 #refer: https://blog.51cto.com/u_16175447/7201469
 
 http_const = {
@@ -53,7 +55,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     """
 
     def do_response(self, data):
-        log(INFO, data)
+        log(INFO, json.dumps(data))
         #print("++++++++++++++++++++++++++++++++")
         # 1. 发送响应code
         self.send_response(data["code"])
@@ -79,6 +81,16 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         #print(self.headers)               # 请求头, 通过 headers["header_name"] 获取值
         #self.rfile                        # 请求输入流
         #self.wfile                        # 响应输出流
+
+        if self.path == '/favicon.ico':
+            # 返回自定义的 favicon.ico 文件
+            self.send_response(200)
+            self.send_header('Content-type', 'image/vnd.microsoft.icon')
+            self.end_headers()
+            # with open('custom_favicon.ico', 'rb') as f:
+            #     self.wfile.write(f.read())
+
+            return
 
         #print(self.path)
         req = str(self.path).lstrip("/").lstrip("?").split("&")
@@ -357,12 +369,13 @@ if __name__ == "__main__":
     args = parse.parse_args()
 
     if not args.conf:
-        if os.path.exists("./clients"):
-            args.conf = "./clients"
-            log(WARNING, "no parameter input but find local conf file clients, use it!")
-        else:
-            log(ERROR, "no parameter input!")
-            os.exit()
+        for conf_file in clients_file:
+            if os.path.exists(conf_file):
+                args.conf = conf_file
+                log(WARNING, "no parameter input but find local conf file clients, use it!")
+    if not args.conf:
+        log(ERROR, "no parameter input!")
+        os.exit()
 
     msg_queue["h2s"] = queue.Queue()
     msg_queue["s2h"] = queue.Queue()
