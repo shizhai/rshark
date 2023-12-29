@@ -120,7 +120,7 @@ class NetworkTestGUI:
         self.rows = self.rows + 1
 
         # IP 输入框和标签
-        self.ip_label = ttk.Label(self.mframe, text="IP Address:")
+        self.ip_label = ttk.Label(self.mframe, text="IP:")
         self.ip_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=0, sticky="e")
         self.widgets_all.append(self.ip_label)
         self.ip_entry = ttk.Entry(self.mframe, width=self.widget_width)
@@ -175,7 +175,7 @@ class NetworkTestGUI:
         self.rate_label = ttk.Label(self.mframe, text="Rate:")
         self.rate_label.grid(row=self.rows, column=0, padx=self.widget_padx, pady=5, sticky="e")
         self.widgets_all.append(self.rate_label)
-        self.rate_select = ttk.Combobox(self.mframe, width=self.widget_width - 2)
+        self.rate_select = ttk.Combobox(self.mframe, width=self.widget_width)
         self.rate_select["value"] = [ str(v) + " Mbps" for v in range(5, 80, 5) ]
         self.rate_select.current(4)
         self.rate_select.grid(row=self.rows, column=1, padx=self.widget_padx, pady=5, sticky="w")
@@ -206,10 +206,11 @@ class NetworkTestGUI:
             rinfo["user"] = item_host["user"]
             rinfo["password"] = item_host["password"]
             rinfo["port"] = item_host["port"]
+            rinfo["type"] = item_host["type"]
             rinfo["ip"] = item_host["ip"]
             rinfo["interface"] = item_host["interface"]
-            rinfo["type"] = item_host["type"]
             rinfo["channel"] = list(range(1, 14))
+            rinfo["bandwidth"] = ["20 MHz", "40 MHz"]
             # rinfo["stores"] = ["pshark://."]
             if self.parse_on_time:
                 rinfo["stores"] = ["wireshark://.", "local://./", "pshark://."]
@@ -234,7 +235,7 @@ class NetworkTestGUI:
         for item in first_info:
             if type(first_info[item]) == list:
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
-                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width - 2)
+                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width)
                 self.wrinfo["value" + item]["value"] = first_info[item]
                 if len(first_info[item]) > 0:
                     self.wrinfo["value" + item].current(0)
@@ -242,7 +243,7 @@ class NetworkTestGUI:
                     self.wrinfo["value" + item].bind('<<ComboboxSelected>>', self.trigger_update_pframe_info)
             elif item == self.trigger_item:
                 self.wrinfo["label" + item] = ttk.Label(self.mframe, text=item + ": ")
-                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width - 2)
+                self.wrinfo["value" + item] = ttk.Combobox(self.mframe, width=self.widget_width)
                 info_trigger_items = []
                 for item_each in self.rinfos:
                     info_trigger_items.append(item_each[self.trigger_item])
@@ -1163,6 +1164,7 @@ class NetworkTestGUI:
                                         msgbox_info["stores"],
                                         msgbox_info["interface"],
                                         msgbox_info["channel"],
+                                        msgbox_info["bandwidth"].lower().strip("mhz "),
                                         None,
                                         10,
                                         msgbox_info["pmacs"])
@@ -1309,6 +1311,7 @@ if __name__ == "__main__":
     parse.add_argument("-p", "--password", help="remote sniffer host password to login", required=False, type=str)
     parse.add_argument("-i", "--interface", help="wireless interface of remote sniffer host to use", required=False, type=str)
     parse.add_argument("-c", "--channel", help="wireless channel of remote sniffer host to use", required=False, type=int)
+    parse.add_argument("-b", "--bandwidth", help="wireless bandwith of channel for remote sniffer host to use", required=False, default="20", type=int)
     parse.add_argument("--ip", help="remote sniffer host ip address", required=False, type=str)
     parse.add_argument("--port", help="remote sniffer host ssh port", required=False, default="22", type=str)
     parse.add_argument("--type", help="the type of remote target host, default: openwrt", choices=["openwrt", "ubuntu"], required=False, type=str)
@@ -1319,7 +1322,7 @@ if __name__ == "__main__":
     args = parse.parse_args()
 
     if (args.ip and args.type and args.user and args.password and args.dst and args.interface and args.channel):
-        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, None)
+        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.bandwidth, args.macs, args.timeout, None)
         shark.rshark_sniffer()
     elif args.conf and os.path.exists(args.conf):
         rshark.rshark_from_conf(args.conf, None)
@@ -1332,7 +1335,7 @@ if __name__ == "__main__":
             log(ERROR, "Remote ip address required and not configure file found!")
         else:
             log(WARNING, "Remote ip address required, use first one {}!".format(args.ip))
-        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, args.macs, args.timeout, None)
+        shark = rshark.Rshark(args.type, args.ip, args.port, args.user, args.password, args.dst, args.interface, args.channel, "20", args.macs, args.timeout, None)
         shark.rshark_sniffer()
     else:
         rshark_main()

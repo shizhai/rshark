@@ -17,6 +17,8 @@ global_log_init = False
 def log(level, msg, color=None, showtime=True):
     if sys.platform.lower().startswith("win"):
         global global_log_init
+        global COLORCODES
+        global ENDCOLOR
         if not global_log_init:
             init(autoreset=True)
             global_log_init = True

@@ -251,7 +251,7 @@ def is_valid_mac_address(mac_address):
     return bool(pattern.match(mac_address))
 
 class Rshark():
-    def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, macs, timeout, pmacs):
+    def __init__(self, rtype, rip, rport, ruser, rpasswd, lstore, intf, channel, bandwidth, macs, timeout, pmacs):
         self.parse_win = None
         self.new_eloop = None
         self.pipc = None
@@ -296,6 +296,7 @@ class Rshark():
 
         self.intf = intf.strip("\n ")
         self.chan = channel
+        self.bw = bandwidth
         self.timeout = 5
         self.rtypes = {
             "openwrt": { "cb": self.rshark_conf_openwrt, "ps": "ps w | grep \"tcpdump -i {}\" | grep -v 'grep' | awk '{{ print $1 }}' | head -n 1"},
@@ -470,6 +471,7 @@ class Rshark():
             if item["ifname"].lower() == self.intf.lower() and item["mode"].lower() == "monitor":
                 item_fund = True
                 self.ssh.exec_command("iwconfig " + self.intf + " channel " + str(self.chan))
+                # TODO: bandwidth setting, QSDK doesn't support set with command iw
                 log(INFO, "Set channel without full configure wifi!")
                 break
 
