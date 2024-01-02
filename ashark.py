@@ -33,11 +33,13 @@ gheight_min = gheight
 
 right_left_size = gwidth - 570
 
-clients_file = "./files/clients"
+clients_path = ('.', 'files', 'clients')
+clients_file = os.path.join(*clients_path)
 
 IPERF_PATH=None
 if os_platform.startswith("win"):
-    IPERF_PATH="./files/iperf/iperf.exe"
+    iperf_path = ('.', 'files', 'iperf', 'iperf.exe')
+    IPERF_PATH=os.path.join(*iperf_path)
 else:
     IPERF_PATH="iperf"
 
@@ -356,7 +358,8 @@ class NetworkTestGUI:
 
         # mac_rates_dict[mac][categories.index(category)] = d[category][mac][field]
 
-        save_file = "./pshark_parse.csv"
+        pshark_file_path = ('.', "pshark_parse.csv")
+        save_file = os.path.join(*pshark_file_path)
 
         log(INFO, f"Render plot & save data to file {save_file} for parsed data!")
 

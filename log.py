@@ -14,7 +14,7 @@ global_log_level = INFO
 
 global_log_init = False
 
-def log(level, msg, color=None, showtime=True):
+def log(level, msg, color=None, showtime=True, end="\n"):
     if sys.platform.lower().startswith("win"):
         global global_log_init
         global COLORCODES
@@ -36,7 +36,7 @@ def log(level, msg, color=None, showtime=True):
     if level == ERROR   and color is None: color="red"
     msg = (datetime.now().strftime('[%H:%M:%S] ') if showtime else " "*11) + COLORCODES.get(color, "") + msg + ENDCOLOR
 
-    print(msg)
+    print(msg, end=end)
 
 def change_log_level(delta):
 	global global_log_level

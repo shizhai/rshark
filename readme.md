@@ -31,6 +31,10 @@
 * 修改clients文件添加sniffer设备，asrd支持多台sniffer设备，依次追加即可
 
 ## 版本历史
+v3.6.1 @2024/01/02 <br>
+> add channel bandwidth support<br>
+> fix path error instead of os.path.join<br>
+
 v3.5.2 @2023/12/29 <br>
 > add zoom in/out for plot<br>
 > add requirement.txt for python dependances<br>
