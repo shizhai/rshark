@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 
+import argparse
 import os
 import sys
 import posixpath
@@ -13,13 +14,14 @@ import mimetypes
 import re
 import signal
 from io import StringIO, BytesIO
+from functools import partial
 
 if sys.version_info.major == 3:
     # Python3
     from urllib.parse import quote
     from urllib.parse import unquote
     from http.server import HTTPServer
-    from http.server import BaseHTTPRequestHandler
+    from http.server import SimpleHTTPRequestHandler
 else:
     # Python2
     from urllib import quote
@@ -28,7 +30,7 @@ else:
     from BaseHTTPServer import BaseHTTPRequestHandler
 
 
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+class SimpleHFS(SimpleHTTPRequestHandler):
     """Simple HTTP request handler with GET/HEAD/POST commands.
     This serves files from the current directory and any of its
     subdirectories.  The MIME type for files is determined by
@@ -40,6 +42,10 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 
     # server_version = "simple_http_server/" + __version__
     server_version = "simple_http_server/v1"
+
+    def __init__(self, *args, dir=None, **kwargs):
+        self.directory = dir
+        super().__init__(*args, directory=dir, **kwargs)
 
     def do_GET(self):
         """Serve a GET request."""
@@ -69,8 +75,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             f.write(b"<strong>Failed:</strong>")
         f.write(info.encode('ascii'))
         f.write(b"<br><a href=\"%s\">back</a>" % self.headers['referer'].encode('ascii'))
-        f.write(b"<hr><small>Powered By: freelamb, check new version at ")
-        f.write(b"<a href=\"https://github.com/freelamb/simple_http_server\">")
+        f.write(b"<hr><small>Powered By: Sampson.Yang, check new version at ")
+        f.write(b"<a href=\"https://github.com/\">")
         f.write(b"here</a>.</small></body>\n</html>\n")
         length = f.tell()
         f.seek(0)
@@ -94,7 +100,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         fn = re.findall(r'Content-Disposition.*name="file"; filename="(.*)"', str(line))
         if not fn:
             return False, "Can't find out file name..."
-        path = translate_path(self.path)
+        path = super().translate_path(self.path)
         fn = os.path.join(path, fn[0])
         while os.path.exists(fn):
             fn += "_"
@@ -132,7 +138,9 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         and must be closed by the caller under all circumstances), or
         None, in which case the caller has nothing further to do.
         """
-        path = translate_path(self.path)
+        print("send head1: "+self.path)
+        path = super().translate_path(self.path)
+        print("send head2: "+path)
         if os.path.isdir(path):
             if not self.path.endswith('/'):
                 # redirect browser - doing basically what apache does
@@ -242,44 +250,25 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     })
 
 
-def translate_path(path):
-    """Translate a /-separated PATH to the local filename syntax.
-    Components that mean special things to the local file system
-    (e.g. drive or directory names) are ignored.  (XXX They should
-    probably be diagnosed.)
-    """
-    # abandon query parameters
-    path = path.split('?', 1)[0]
-    path = path.split('#', 1)[0]
-    path = posixpath.normpath(unquote(path))
-    words = path.split('/')
-    words = filter(None, words)
-    path = os.getcwd()
-    for word in words:
-        drive, word = os.path.splitdrive(word)
-        head, word = os.path.split(word)
-        if word in (os.curdir, os.pardir):
-            continue
-        path = os.path.join(path, word)
-    return path
-
-
 def signal_handler(signal, frame):
     print("You choose to stop me.")
     exit()
 
 
 def main():
-    if sys.argv[1:]:
-        port = int(sys.argv[1])
-    else:
-        port = 8000
-    server_address = ('', port)
+    parse = argparse.ArgumentParser()
+    parse.add_argument("-p", "--port", help="phfs port running on", required=False, default=8000, type=int)
+    parse.add_argument("-d", "--dir", help="phfs root directory", required=False, default=".", type=str)
+    args = parse.parse_args()
+
+    print(args.dir)
+
+    server_address = ('', args.port)
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    httpd = HTTPServer(server_address, partial(SimpleHFS, dir=args.dir))
     server = httpd.socket.getsockname()
     print("server_version: " + SimpleHTTPRequestHandler.server_version + ", python_version: " + SimpleHTTPRequestHandler.sys_version)
     print("Serving HTTP on: " + str(server[0]) + ", port: " + str(server[1]) + " ...")
