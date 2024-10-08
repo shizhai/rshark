@@ -7,3 +7,4 @@ stores
 dist
 build
 *.swp
+.bookmarks.vim
